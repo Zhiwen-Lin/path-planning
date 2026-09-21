@@ -44,7 +44,7 @@ from typing import List, Tuple, Dict, Optional, Callable
 
 from fixed_wing_dynamics import FixedWingDynamics
 
-SMOOTHING_VERSION = "V5.3-adaptive-altitude-climb-envelope-terminal-heading"
+SMOOTHING_VERSION = "V5.3.2-terminal-heading-repair"
 
 
 # ============================================================================
@@ -336,6 +336,31 @@ def default_s_candidates(n_points: int,
         for f in fractions
     ]
     return sorted(set(values))
+
+
+def repair_terminal_heading(tck, terminal_heading):
+    """Align the end tangent of a clamped cubic spline, preserving endpoints.
+
+    For a clamped B-spline the end tangent is parallel to the last control
+    polygon edge. Rotate only that edge's XY component, preserving its length
+    and the entire z spline. The curve remains cubic/C2, but must be revalidated
+    for curvature, altitude, collision and locality after this adjustment.
+    """
+    knots, coefficients, degree = tck
+    knots = np.asarray(knots, dtype=float)
+    coeff = np.asarray(coefficients, dtype=float).copy()
+    direction = np.asarray(terminal_heading, dtype=float).ravel()
+    if (degree != 3 or coeff.ndim != 2 or coeff.shape[0] != 3 or coeff.shape[1] < 4
+            or len(knots) != coeff.shape[1] + degree + 1
+            or not np.all(knots[-degree-1:] == knots[-1])):
+        raise ValueError('Terminal-heading repair requires a clamped cubic 3-D spline')
+    if direction.size != 2 or not np.all(np.isfinite(direction)) or np.linalg.norm(direction) < 1e-12:
+        raise ValueError('Terminal heading must be a finite nonzero XY vector')
+    length = np.linalg.norm(coeff[:2, -1] - coeff[:2, -2])
+    if not np.isfinite(length) or length < 1e-12:
+        raise ValueError('Cannot rotate a degenerate terminal tangent')
+    coeff[:2, -2] = coeff[:2, -1] - length * direction / np.linalg.norm(direction)
+    return knots.copy(), [c.copy() for c in coeff], degree
 
 
 # ============================================================================
@@ -701,6 +726,10 @@ def validate_spline(tck, raw_points: np.ndarray, u_raw: np.ndarray,
 
     u_probe = np.linspace(0.0, 1.0, 4096)
     curve_probe = np.asarray(splev(u_probe, tck), dtype=float).T
+    d1 = np.asarray(splev(u_probe, tck, der=1), dtype=float).T
+    if (not np.all(np.isfinite(curve_probe)) or not np.all(np.isfinite(d1))
+            or np.any(np.linalg.norm(d1, axis=1) <= 1e-9)):
+        raise ValueError('Spline has nonfinite coordinates or a singular tangent')
 
     # 1) Curvature / turn radius.
     k = spline_curvature(tck, u_probe)
@@ -718,14 +747,9 @@ def validate_spline(tck, raw_points: np.ndarray, u_raw: np.ndarray,
         curvature_variation = 0.0
 
     # 2) Analytic tangent -> climb angle.
-    d1 = np.asarray(splev(u_probe, tck, der=1), dtype=float).T
     horiz = np.linalg.norm(d1[:, :2], axis=1)
-    valid = horiz > 1e-9
-    if np.any(valid):
-        angles = np.degrees(np.arctan2(np.abs(d1[valid, 2]), horiz[valid]))
-        max_climb_angle = float(np.max(angles))
-    else:
-        max_climb_angle = 0.0
+    angles = np.degrees(np.arctan2(np.abs(d1[:, 2]), horiz))
+    max_climb_angle = float(np.max(angles))
     climb_angle_ok = bool(max_climb_angle <= dynamics.max_climb_angle_deg + 1e-9)
 
     # 3) Endpoints: smoothing must not move the mission start/goal.
@@ -979,6 +1003,7 @@ def smooth_with_validation(path: List[np.ndarray],
                            terminal_heading: Optional[np.ndarray] = None,
                            terminal_heading_tolerance_deg: float = 12.0,
                            endpoint_tolerance_m: float = 2.0,
+                           _terminal_heading_repair: bool = False,
                            ) -> Tuple[List[np.ndarray], Dict]:
     """Globally select the best feasible cubic B-spline candidate.
 
@@ -1030,6 +1055,8 @@ def smooth_with_validation(path: List[np.ndarray],
     for candidate_index, s_val in enumerate(candidates, 1):
         try:
             tck, u_raw, P = fit_bspline(path, s_val)
+            if _terminal_heading_repair:
+                tck = repair_terminal_heading(tck, terminal_heading)
         except (ValueError, RuntimeError) as e:
             last_error = str(e)
             candidate_history.append({
@@ -1272,6 +1299,27 @@ def smooth_with_validation(path: List[np.ndarray],
         chosen = min(feasible_candidates, key=lambda r: (r[0], r[1]))
         feasible = True
     else:
+        # Keep successful V5.3 paths unchanged. Only when the original pass has
+        # no feasible candidate, retry the same s values with an explicit end
+        # tangent; vertical repairs and every hard constraint still apply.
+        if (not _terminal_heading_repair
+                and any(item.get('terminal_heading_ok') is False for item in candidate_history)):
+            repaired_path, repaired = smooth_with_validation(
+                path, dynamics, s_param=s_param, grid_xy=grid_xy,
+                corridor_radius=corridor_radius, corridor_reference=corridor_reference,
+                collision_checker=collision_checker, altitude_checker=altitude_checker,
+                altitude_floor=altitude_floor, ds_target=ds_target,
+                max_smoothing_deviation=max_smoothing_deviation,
+                enforce_search_corridor=enforce_search_corridor,
+                terminal_heading=terminal_heading,
+                terminal_heading_tolerance_deg=terminal_heading_tolerance_deg,
+                endpoint_tolerance_m=endpoint_tolerance_m,
+                _terminal_heading_repair=True,
+            )
+            repaired['original_candidate_history'] = candidate_history
+            repaired['heading_repair_attempted'] = True
+            repaired['total_candidate_evaluations'] = len(candidates) + repaired['attempts']
+            return repaired_path, repaired
         # Diagnostic-only fallback: first minimize hard-constraint violation,
         # then the same smoothing score.
         chosen = min(fallback_candidates, key=lambda r: (r[7], r[0], r[1]))
@@ -1350,6 +1398,9 @@ def smooth_with_validation(path: List[np.ndarray],
         'attempts': len(candidates),
         'selected_candidate_index': int(selected_index),
         'candidate_history': candidate_history,
+        'terminal_heading_repaired': bool(_terminal_heading_repair),
+        'heading_repair_attempted': bool(_terminal_heading_repair),
+        'total_candidate_evaluations': len(candidates),
         'selection_score': float(score),
         'selection_components': quality,
         'altitude_repaired': bool(selected_item.get('altitude_repaired', False)),

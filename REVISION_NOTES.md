@@ -1,4 +1,57 @@
-# V5.3.1 evaluation consistency and repeatable sweep
+# Terminal-heading follow-up (2026-09-21)
+
+- Smoother version: `V5.3.2-terminal-heading-repair`. The V5.3.1 evaluation
+  schema and output filenames are retained; source hashes distinguish runs.
+- If all original smoothing candidates fail and any violates terminal heading,
+  rotate the final control-polygon edge in XY and rerun the candidate search,
+  including altitude/climb repairs and every original hard constraint. Existing
+  successful candidates take the original path. Limits remain 12 degrees for
+  heading and 15 degrees for climb. No search physics or anchor values changed.
+- Reject singular spline tangents; include vertical tangents in the climb-angle
+  test instead of ignoring them. Preserve smoothing version and repair diagnostics
+  through Excel export/import. Verify cached weights and final-row provenance
+  before recovering a complete case.
+- The previously failing pure-time anchor now passes the complete coarse
+  postprocessing pipeline: heading error 0.074350 degrees, maximum climb
+  14.651145 degrees, minimum radius 1084.554692 m, speeds 33-55 m/s.
+  Final T=2506.515208 s, C=155.832585, F=7.563341 kg. This is a coarse-path
+  verification, not a replacement for the paper's planned fine-grid comparison.
+- Added regressions cover heading repair, endpoint/altitude preservation,
+  singular/vertical splines, unchanged successful candidates, rejection of
+  other constraint failures, cache identity, and the complete 72-case orchestration
+  through Excel export/import, representative selection and resume. The 72-case
+  orchestration test uses simulated search results, not 72 actual searches.
+- All 28 regression tests and every original preflight check passed; all 24
+  Python files passed syntax parsing. Regression log:
+  `output_5zones/validation_v5_3_2/regressions.log`.
+- An additional 16,385-point check of the repaired pure-time spline passed
+  altitude/no-fly tests, with minimum radius 1051.438098 m and maximum climb
+  14.656091 degrees. These denser extrema supplement the 4096-point routine
+  validation above; the checks remain numerical sampling, not an analytic
+  proof of constraints at every point on the continuous curve.
+- Real-map postprocessing passed for all four saved raw paths: pure-time,
+  pure-risk, pure-fuel and balanced (0.3,1,0.2). All passed the strict speed
+  profile/evaluator and additional 16,385-point altitude/no-fly checks.
+  Risk, fuel and balanced did not invoke the new heading repair. The balanced
+  final path and T/C/F agree with the previous validated result; its complete
+  case cache has been regenerated with the current source signature and can
+  be recovered by the default sweep without searching or smoothing again.
+
+| Real case | Final T (s) | Final C | Final F (kg) |
+| --- | ---: | ---: | ---: |
+| Time (1,0,0) | 2506.515208 | 155.832585 | 7.563341 |
+| Risk (0,1,0) | 2856.137976 | 0 | 14.336817 |
+| Fuel (0,0,1) | 2482.749544 | 184.564177 | 7.636832 |
+| Balanced (0.3,1,0.2) | 2578.928872 | 18.922463 | 7.737316 |
+
+These are validation cases, not the representative weights selected from a
+completed new sweep. The full 72 actual searches have not been executed in
+this follow-up. The three stored raw anchors still reproduce their original
+L/T/C/F. Detailed local records (including source signature and environment)
+are in `output_5zones/validation_v5_3_2/verification_report.json`; generated
+records remain outside Git. Start the formal sweep with `python -u sweep_2d.py`.
+
+## Previous V5.3.1 evaluation consistency and repeatable sweep
 
 - Final speed segments now use constant tangential acceleration: squared
   speed is linear in distance. Time, exposure and fuel use the same subsegment
@@ -31,7 +84,7 @@
   before the formal sweep. Historical SHA256SUMS.txt describes the original
   release only; Git commits and the experiment signature identify this revision.
 
-## Additional pre-existing limitation found during validation
+## Historical limitation (resolved by the terminal-heading follow-up above)
 
 The cached pure-time anchor (1,0,0) is a valid raw search path and its raw
 metrics remain unchanged. Passing it directly through the coarse smoothing

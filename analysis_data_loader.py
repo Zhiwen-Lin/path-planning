@@ -96,7 +96,7 @@ def load_sweep_dataframe(path: Optional[str] = None) -> Tuple[pd.DataFrame, Path
         df["altm"] = pd.to_numeric(df["altkm"], errors="coerce") * 1000.0
 
     for c in df.columns:
-        if c not in {"ts", "schema_version", "run_signature", "case_file", "错误"}:
+        if c not in {"ts", "schema_version", "run_signature", "case_file", "错误", "平滑版本"}:
             try:
                 df[c] = pd.to_numeric(df[c], errors="coerce")
             except Exception:

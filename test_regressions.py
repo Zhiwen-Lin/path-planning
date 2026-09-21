@@ -19,6 +19,75 @@ from fixed_wing_dynamics import FixedWingDynamics
 from radar_environment_5zones import RadarEnvironment5Zones
 from select_representative_weights import select_representatives
 import sweep_2d as sweep
+import trajectory_smoothing as smoothing
+from scipy.interpolate import splev
+
+
+class SmoothingRepairTests(unittest.TestCase):
+    def setUp(self):
+        self.dyn = FixedWingDynamics()
+        self.path = np.column_stack((np.linspace(0., 20000., 10),
+                                     np.zeros(10), np.full(10, 1000.)))
+        self.heading = np.array([np.cos(np.radians(20)), np.sin(np.radians(20))])
+
+    def smooth(self, **kwargs):
+        return smoothing.smooth_with_validation(
+            self.path, self.dyn, s_param=0., grid_xy=2000.,
+            max_smoothing_deviation=3000., ds_target=100., **kwargs)
+
+    def test_heading_repair_preserves_endpoints_altitude_and_input(self):
+        tck, _, _ = smoothing.fit_bspline(self.path, 0.)
+        before = np.asarray(tck[1]).copy()
+        fixed = smoothing.repair_terminal_heading(tck, self.heading)
+        np.testing.assert_array_equal(tck[1], before)
+        np.testing.assert_allclose(splev([0., 1.], fixed), splev([0., 1.], tck), atol=1e-10)
+        np.testing.assert_array_equal(fixed[1][2], tck[1][2])
+        tangent = np.asarray(splev(1., fixed, der=1))[:2]
+        np.testing.assert_allclose(tangent / np.linalg.norm(tangent), self.heading, atol=1e-12)
+        for bad in ([0., 0.], [np.nan, 1.], [1.], [1., 0., 0.]):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                smoothing.repair_terminal_heading(tck, bad)
+
+    def test_heading_failure_is_repaired_without_relaxing_constraints(self):
+        path, result = self.smooth(terminal_heading=self.heading)
+        self.assertTrue(result['success'], result['message'])
+        self.assertTrue(result['terminal_heading_repaired'])
+        self.assertEqual(result['total_candidate_evaluations'], 2)
+        self.assertFalse(result['original_candidate_history'][0]['terminal_heading_ok'])
+        self.assertLess(result['validation']['terminal_heading_error_deg'], 1e-5)
+        self.assertEqual(result['validation']['terminal_heading_tolerance_deg'], 12.)
+        self.assertTrue(result['validation']['feasible'])
+        self.dyn.compute_speed_profile(path, strict_feasibility=True)
+
+    def test_successful_original_candidate_is_not_repaired(self):
+        with patch.object(smoothing, 'repair_terminal_heading', side_effect=AssertionError('unneeded repair')):
+            _, result = self.smooth(terminal_heading=[1., 0.])
+        self.assertTrue(result['success'])
+        self.assertFalse(result['heading_repair_attempted'])
+        self.assertEqual(result['total_candidate_evaluations'], 1)
+
+    def test_heading_repair_cannot_bypass_other_hard_constraints(self):
+        for checker in ('collision_checker', 'altitude_checker'):
+            # Every sample collides, or every sample violates altitude.
+            with self.subTest(checker=checker):
+                _, result = self.smooth(terminal_heading=self.heading,
+                    **{checker: lambda p: checker == 'collision_checker'})
+                self.assertFalse(result['success'])
+                self.assertTrue(result['heading_repair_attempted'])
+                self.assertFalse(result['validation']['feasible'])
+
+    def test_singular_and_vertical_splines_are_not_feasible(self):
+        knots = np.array([0.] * 4 + [1.] * 4)
+        # Constant cubic has no tangent; curvature=0 must not make it flyable.
+        singular = (knots, [np.zeros(4)] * 3, 3)
+        with self.assertRaisesRegex(ValueError, 'singular tangent'):
+            smoothing.validate_spline(singular, np.zeros((4, 3)), np.linspace(0, 1, 4), self.dyn)
+        vertical = (knots, [np.zeros(4), np.zeros(4), np.arange(4.) * 1000.], 3)
+        raw = np.asarray(splev(np.linspace(0, 1, 4), vertical)).T
+        result = smoothing.validate_spline(vertical, raw, np.linspace(0, 1, 4), self.dyn)
+        self.assertEqual(result['max_climb_angle'], 90.)
+        self.assertFalse(result['climb_angle_ok'])
+        self.assertFalse(result['feasible'])
 
 
 class ConstantThreat:
@@ -217,6 +286,58 @@ def success_row(wt=0., wf=0.):
 
 
 class ResumeTests(unittest.TestCase):
+    def test_72_case_export_load_select_and_resume_pipeline(self):
+        from analysis_data_loader import load_sweep_dataframe
+        with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
+            for key, value in [('OUT_DIR', tmp), ('CASE_DIR', os.path.join(tmp, 'cases')),
+                               ('INTERIM_PKL', os.path.join(tmp, 'rows.pkl')),
+                               ('EXCEL_FILE', os.path.join(tmp, 'sweep.xlsx'))]:
+                stack.enter_context(patch.object(sweep, key, value))
+            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            planner = Mock()
+            baseline = dict.fromkeys(('T_min', 'T_max', 'C_min', 'C_max', 'F_min', 'F_max', 'L0', 'T0', 'C0'), 1.)
+            planner.baseline_manager.ensure.return_value = baseline
+            planner._run_astar.return_value = (np.zeros((2, 3)), {})
+            stack.enter_context(patch.object(sweep, 'build_models', return_value=(None, None, None, planner)))
+            stack.enter_context(patch.object(sweep, 'experiment_signature', return_value='test-signature'))
+            finalise = stack.enter_context(patch.object(sweep, 'finalise_path', return_value=(np.zeros((2, 3)), {}, {}, [], [])))
+            def make_row(wt, wf, *args):
+                return {**success_row(wt, wf), '最小转弯半径_m': 1000., '平滑评价_Js': .1,
+                        '平滑版本': smoothing.SMOOTHING_VERSION}
+            stack.enter_context(patch.object(sweep, 'make_success_row', side_effect=make_row))
+            rows, returned_baseline = sweep.run_sweep()
+            self.assertEqual(planner._run_astar.call_count, 72)
+            self.assertEqual(finalise.call_count, 72)
+            self.assertEqual({(r['权重_w_time'], r['权重_w_fuel']) for r in rows}, set(sweep.COMBOS))
+            sweep.export_excel(rows, returned_baseline)
+            loaded, _ = load_sweep_dataframe(sweep.EXCEL_FILE)
+            self.assertEqual(len(loaded), 72)
+            self.assertEqual(set(loaded['平滑版本']), {smoothing.SMOOTHING_VERSION})
+            self.assertEqual(set(loaded['run_signature']), {'test-signature'})
+            self.assertEqual(len(select_representatives(loaded)), 4)
+            rerun, _ = sweep.run_sweep()
+            self.assertEqual(len(rerun), 72)
+            self.assertEqual(planner._run_astar.call_count, 72)
+            self.assertEqual(finalise.call_count, 72)
+
+    def test_case_identity_and_complete_final_row_are_required(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'case.pkl'
+            raw = {'run_signature': 'test-signature', 'weights': (0., 1., 0.),
+                   'raw_path': np.zeros((2, 3)), 'raw_stats': {}, 'row': success_row()}
+            sweep.atomic_pickle(path, raw)
+            self.assertIsNone(sweep.load_case(path, 'test-signature', (0.1, 1., 0.)))
+            self.assertIsNone(sweep.load_case(path, 'old-signature', (0., 1., 0.)))
+            self.assertNotIn('row', sweep.load_case(path, 'test-signature', (0., 1., 0.)))
+            complete = {**raw, **dict.fromkeys(('final_path', 'smooth', 'final_stats', 'speed', 'accel'), [])}
+            sweep.atomic_pickle(path, complete)
+            self.assertIn('row', sweep.load_case(path, 'test-signature', (0., 1., 0.)))
+            complete['row'] = success_row(0.1)
+            sweep.atomic_pickle(path, complete)
+            recovered = sweep.load_case(path, 'test-signature', (0., 1., 0.))
+            self.assertNotIn('row', recovered)
+            self.assertIn('raw_path', recovered)
+
     def test_failed_and_nonfinite_rows_are_not_done(self):
         self.assertTrue(sweep.already_done([success_row()], 0, 0))
         for field, value in [('平滑成功', False), ('飞行时间_s', np.nan),

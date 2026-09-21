@@ -126,7 +126,7 @@ def case_path(wt, wf):
     return os.path.join(CASE_DIR, f'wt_{wt:.1f}_wf_{wf:.1f}.pkl')
 
 
-def load_case(path, signature):
+def load_case(path, signature, weights=None):
     if not os.path.exists(path):
         return None
     try:
@@ -136,6 +136,17 @@ def load_case(path, signature):
         return None
     if not isinstance(data, dict) or data.get('run_signature') != signature:
         return None
+    if weights is not None and data.get('weights') != weights:
+        return None
+    row = data.get('row', {})
+    if row:
+        row_weights = tuple(row.get(k) for k in ('权重_w_time', '权重_w_risk', '权重_w_fuel'))
+        if (row.get('run_signature') != signature
+                or row.get('schema_version') != SWEEP_SCHEMA_VERSION
+                or row_weights != data.get('weights')
+                or not all(k in data for k in ('final_path', 'smooth', 'final_stats', 'speed', 'accel'))):
+            # Keep the valid raw search; never recover a stale or partial final row.
+            data.pop('row', None)
     return data if 'raw_path' in data and 'raw_stats' in data else None
 
 
@@ -267,6 +278,9 @@ def make_success_row(wt, wf, raw_path, raw_stats, final_path, smooth,
         "高度B样条修复": bool(smooth.get("altitude_repaired", False)),
         "高度修复缓冲_m": float(smooth.get("altitude_repair_buffer_m", 0.0)),
         "爬升角B样条修复": bool(smooth.get("climb_repaired", False)),
+        "末端航向B样条修复": bool(smooth.get("terminal_heading_repaired", False)),
+        "候选实际评估次数": int(smooth.get("total_candidate_evaluations", smooth["attempts"])),
+        "平滑版本": smooth.get("smoothing_version", "unknown"),
         "爬升修复斜率比例": float(smooth.get("climb_repair_fraction", 1.0)),
         "平滑最大偏离_m": float(val.get("max_raw_deviation", np.nan)),
         "平滑信赖域_m": float(SMOOTHING_TRUST_RADIUS),
@@ -378,7 +392,7 @@ def run_sweep(resume=True, force_baseline=False):
         smooth = None
         artifact_path = case_path(wt, wf)
         try:
-            cached = load_case(artifact_path, run_signature) if resume else None
+            cached = load_case(artifact_path, run_signature, (wt, W_RISK_FIXED, wf)) if resume else None
             if cached is not None and row_is_successful(cached.get('row', {})):
                 # Recover the narrow interruption window between writing a
                 # complete case and updating the aggregate checkpoint.
@@ -421,6 +435,8 @@ def run_sweep(resume=True, force_baseline=False):
                 repair_tags.append("alt-repair")
             if row.get("爬升角B样条修复", False):
                 repair_tags.append("climb-repair")
+            if row.get("末端航向B样条修复", False):
+                repair_tags.append("heading-repair")
             repair_note = f", repair={'+'.join(repair_tags)}" if repair_tags else ""
             print(
                 f"  final: T={row['飞行时间_min']:.2f} min, "
