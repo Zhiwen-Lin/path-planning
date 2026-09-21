@@ -26,6 +26,8 @@ import matplotlib.pyplot as plt
 
 from fixed_wing_dynamics import FixedWingDynamics
 from trajectory_smoothing import spline_curvature, resample_by_arclength
+from trajectory_data_loader import load_trajectory_data, trajectory_output_path
+from pathlib import Path
 
 COARSE_PKL = "output_5zones/planned_path_coarse.pkl"
 FINE_PKL = "output_5zones/planned_path.pkl"
@@ -119,20 +121,17 @@ def build_profiles(coarse_data, fine_data, dyn):
         "physical_label": "polyline proxy"
     }
 
-    # 2) Fine raw
-    fine_raw = fine_data.get("path_raw", fine_data["path"])
-    fine_dense, fine_k = _densify_polyline_preserve_vertex_curvature(
-        fine_raw, dyn, DS_PLOT
-    )
-    s, v, k, a = dyn.compute_speed_profile(
-        fine_dense,
-        curvatures_in=fine_k,
-        strict_feasibility=False
-    )
-    profiles["Fine A* raw"] = {
-        "path": fine_dense, "s": s, "v": v, "k": k, "a": a,
-        "physical_label": "polyline proxy"
-    }
+    is_sweep = fine_data.get('source_kind') == 'sweep'
+    # main.py has a fine search; the coarse-only sweep has two stages to plot.
+    if not is_sweep:
+        fine_dense, fine_k = _densify_polyline_preserve_vertex_curvature(
+            fine_data['path_raw'], dyn, DS_PLOT)
+        s, v, k, a = dyn.compute_speed_profile(
+            fine_dense, curvatures_in=fine_k, strict_feasibility=False)
+        profiles["Fine A* raw"] = {
+            "path": fine_dense, "s": s, "v": v, "k": k, "a": a,
+            "physical_label": "polyline proxy"
+        }
 
     # 3) Fine + B-spline
     tck = fine_data.get("smooth_result", {}).get("tck", None)
@@ -142,14 +141,15 @@ def build_profiles(coarse_data, fine_data, dyn):
             "Run the revised main.py first."
         )
 
-    smooth_dense, u = resample_by_arclength(tck, DS_PLOT)
-    smooth_k = spline_curvature(tck, u)
-    s, v, k, a = dyn.compute_speed_profile(
-        smooth_dense,
-        curvatures_in=smooth_k,
-        strict_feasibility=True
-    )
-    profiles["Fine + B-spline"] = {
+    # Final figures use exactly the samples and speeds used for saved T/C/F.
+    smooth_dense = np.asarray(fine_data['path'])
+    s = np.r_[0., np.cumsum(np.linalg.norm(np.diff(smooth_dense, axis=0), axis=1))]
+    v = np.asarray(fine_data['speed_profile'])
+    k = np.asarray(fine_data['curvature_smooth'])
+    a = np.asarray(fine_data['accel_profile'])
+    dyn.validate_speed_profile(smooth_dense, v, k)
+    final_label = 'Coarse + B-spline' if is_sweep else 'Fine + B-spline'
+    profiles[final_label] = {
         "path": smooth_dense, "s": s, "v": v, "k": k, "a": a,
         "physical_label": "final physical profile"
     }
@@ -158,15 +158,14 @@ def build_profiles(coarse_data, fine_data, dyn):
 
 
 def main():
-    if not os.path.exists(COARSE_PKL):
-        raise FileNotFoundError(f"Missing {COARSE_PKL}. Run main.py first.")
-    if not os.path.exists(FINE_PKL):
-        raise FileNotFoundError(f"Missing {FINE_PKL}. Run main.py first.")
-
-    with open(COARSE_PKL, "rb") as f:
-        coarse_data = pickle.load(f)
-    with open(FINE_PKL, "rb") as f:
-        fine_data = pickle.load(f)
+    fine_data = load_trajectory_data(allow_raw=False)
+    if fine_data['source_kind'] == 'sweep':
+        coarse_data = {'path': fine_data['path_raw']}
+    else:
+        coarse_data = load_trajectory_data(Path(fine_data['source_file']).with_name('planned_path_coarse.pkl'))
+        for key in ('trajectory_signature', 'w_time', 'w_risk', 'w_fuel', 'start', 'goal'):
+            if not np.array_equal(coarse_data[key], fine_data[key]):
+                raise ValueError(f'Coarse and fine caches belong to different experiments: {key}')
 
     dyn = FixedWingDynamics()
     profiles = build_profiles(coarse_data, fine_data, dyn)
@@ -186,7 +185,7 @@ def main():
     ax.axhline(dyn.v_stall * 3.6, linestyle=":", linewidth=1.8,
                label=f"Stall ({dyn.v_stall * 3.6:.0f} km/h)")
     ax.set_ylabel("Speed (km/h)")
-    ax.set_title("(a) Three-way speed profile comparison")
+    ax.set_title("(a) Speed profile comparison")
     ax.grid(True, alpha=0.3, linestyle="--")
     ax.legend(ncol=2)
 
@@ -222,18 +221,18 @@ def main():
     ax.legend()
 
     fig.suptitle(
-        "Coarse vs Fine Raw vs Fine + B-spline — Speed Planning Comparison",
+        "Speed Planning Comparison — " + fine_data['source_kind'],
         fontsize=15, fontweight="bold"
     )
     plt.tight_layout(rect=[0, 0, 1, 0.97])
 
-    os.makedirs(os.path.dirname(OUTPUT), exist_ok=True)
-    plt.savefig(OUTPUT, dpi=300, bbox_inches="tight", facecolor="white")
+    output = trajectory_output_path(Path(OUTPUT).name)
+    plt.savefig(output, dpi=300, bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
     # Console summary
     print("\n" + "=" * 92)
-    print("Three-way speed-profile summary")
+    print("Speed-profile summary")
     print("=" * 92)
     print(
         f"{'Stage':22s} {'N':>7s} {'L(km)':>9s} {'T(s)':>9s} "
@@ -253,7 +252,7 @@ def main():
     print("\n* Vmin includes every point; the airborne start speed is the stall speed.")
     print("  Raw A* curves are polyline proxies; the B-spline curve is the final")
     print("  physically validated profile using analytic curvature.")
-    print(f"\nSaved: {OUTPUT}")
+    print(f"\nSaved: {output}")
 
 
 if __name__ == "__main__":

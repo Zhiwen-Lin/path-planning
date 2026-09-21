@@ -1,3 +1,35 @@
+# Unified analysis and trajectory plotting (2026-09-21)
+
+- The shared workbook reader now requires 72 successful current-version cases,
+  one consistent source signature and a match to the local source/baseline.
+  A missing new workbook no longer silently selects an old workbook. All four
+  sweep analysis scripts and the representative selector use the same checks.
+- Core tradeoff plots use the shared representative selector instead of fixed
+  weights. Display-only batch min-max scaling is explicitly labelled and handles
+  constant columns. Exposure C is reported in seconds, including heatmaps.
+- Fixed radar v2's wrong `C_risk` key (which displayed zero); it now reads
+  `Crisk`. Sample-segment counts are no longer called penetration events, and
+  the probability average is identified as a sampled fused max-Pd diagnostic.
+- All six trajectory/radar plotting scripts use `trajectory_data_loader.py`.
+  They accept an explicit `TRAJECTORY_FILE` sweep case, validate its source,
+  saved metrics, spline samples and speed profile, and isolate its figures by
+  case name. Default inputs remain current main.py caches. Final speed and
+  curvature plots reuse saved samples, rather than resampling/replanning.
+- Main caches gain a signature covering shared physics, main and fine search.
+  Main invokes plotting with its own Python executable and isolates its
+  coarse/fine inputs from standalone plotting environment overrides.
+- The eight files hashed by the sweep are unchanged. The existing validated
+  balanced cache still matches signature
+  `9c24c99ea0b720f403f59d473140d4251d3fbd6e9901e80810fd3967b2d96001`.
+  No sweep rerun is needed due to these postprocessing edits. Old unsigned
+  main.py caches need regeneration before being used as current final results.
+- Validation: 36 automated tests passed, including executing all four sweep
+  analysis scripts on a synthetic complete table. All six trajectory plotting
+  scripts executed successfully against the real saved balanced case and
+  generated nine PNGs under `output_5zones/validation_postprocessing/`.
+  Their individual logs and `smoke_report.json` are retained there. Full A*
+  searches and a new main.py fine-search experiment were not repeated.
+
 # Terminal-heading follow-up (2026-09-21)
 
 - Smoother version: `V5.3.2-terminal-heading-repair`. The V5.3.1 evaluation

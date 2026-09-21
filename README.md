@@ -19,7 +19,7 @@ python -m venv .venv
 先执行项目自带的预检：
 
 ```powershell
-python -m unittest -v test_regressions
+python -m unittest -v test_regressions test_postprocessing
 python preflight_check.py
 ```
 
@@ -45,6 +45,23 @@ python -u sweep_2d.py
 python select_representative_weights.py
 ```
 
+所有 sweep 分析图共用严格数据验收：必须是当前版本的 72 组成功结果，且来源签名一致、与本地代码和基准匹配。新工作簿不存在时会明确报错，不会自动回退旧表。核心权衡图中的典型工况也使用同一个代表工况选择器。累积暴露 `C=∫Pd dt` 的单位统一为秒；图中的批内 min-max 缩放与搜索使用的 anchor 归一化分别标注。
+
+轨迹图默认读取当前 `main.py` 生成且签名匹配的 `planned_path.pkl`。也可以直接画某个已完成的 sweep 工况，无需重新搜索：
+
+```powershell
+$env:TRAJECTORY_FILE = "output_5zones/sweep_cases_v5_3_1/wt_0.3_wf_0.2.pkl"
+python visualize_astar_separate.py
+python visualize_speed_profile_english.py
+python visualize_turn_radius.py
+python analyze_radar_interaction_v2.py
+Remove-Item Env:TRAJECTORY_FILE
+```
+
+指定工况的图默认写入 `analysis_figures/<工况文件名>/`，也可通过 `ANALYSIS_OUTDIR` 指定目录。速度和转弯图复用保存的最终路径、解析曲率及速度；原始折线仅作诊断比较。缺少签名的历史 `main.py` 缓存会被拒绝，需用当前 `main.py` 重新生成；本次后处理修改不会使既有 sweep 缓存失效。
+
+`main.py` 保留粗细两阶段搜索，sweep 保留粗网格筛选；二者共用物理评价，网格及平滑信赖域按实验用途区分。
+
 运行参数和版本说明见 [RUN_FIRST.txt](RUN_FIRST.txt)、[VERSION.txt](VERSION.txt) 和 [REVISION_NOTES.md](REVISION_NOTES.md)。
 
 V5.3.1 统一了变速段的时间、暴露和燃油积分，速度边界为 `v(0)=33 m/s`。起点和终点高度保持 0 m，作为任务高度参考；模型不包含地面滑跑和着陆滑跑。全程执行失速速度下限。搜索网格、威胁模型和目标权重范围保持 V5.3 配置。
@@ -63,9 +80,11 @@ V5.3.1 统一了变速段的时间、暴露和燃油积分，速度边界为 `v(
 | `baseline_manager.py` | 多目标归一化基准管理 |
 | `sweep_2d.py`、`select_representative_weights.py` | 权重扫描与代表性权重选择 |
 | `analysis_data_loader.py`、`analyze_*.py` | 实验数据读取与分析 |
+| `trajectory_data_loader.py` | main/sweep 轨迹缓存的校验与统一读取 |
 | `visualize_*.py`、`plot_heatmap_3obj_v3.py` | 轨迹和统计图表 |
 | `preflight_check.py` | 正式实验前的回归预检 |
 | `test_regressions.py` | 积分、速度、筛选及续跑回归测试 |
+| `test_postprocessing.py` | 后处理数据校验、代表工况和轨迹图回归测试 |
 | `AST_paper_detailed_plan_V5.3.md` | 论文详细规划 |
 | `output_5zones/` | 本地实验结果、缓存和图表 |
 

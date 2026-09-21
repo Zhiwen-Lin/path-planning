@@ -7,6 +7,7 @@
 展示B样条光滑的效果（消除曲率突变）
 """
 
+from trajectory_data_loader import load_trajectory_data, trajectory_output_path
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -30,14 +31,7 @@ print("=" * 80)
 # ============================================================================
 # 加载路径和动力学模型
 # ============================================================================
-PICKLE_PATH = "output_5zones/planned_path.pkl"
-if not os.path.exists(PICKLE_PATH):
-    print("\n未找到缓存路径，请先运行 main.py")
-    import sys; sys.exit(1)
-
-print("\n加载路径数据...")
-with open(PICKLE_PATH, 'rb') as f:
-    data = pickle.load(f)
+data = load_trajectory_data(allow_raw=False)
 
 path_smooth = np.array(data['path'])           # 光滑后路径
 path_raw = np.array(data.get('path_raw', []))  # 原始细网格路径
@@ -116,7 +110,9 @@ def compute_turn_radii_spline(tck, path):
 # 光滑后路径: 有样条则用解析曲率
 _tck = smooth_result.get('tck', None)
 if _tck is not None:
-    dist_smooth, radii_smooth = compute_turn_radii_spline(_tck, path_smooth)
+    k = np.asarray(data['curvature_smooth'])
+    radii_smooth = np.clip(1.0 / np.maximum(k, 1e-12), 0, 50000)
+    dist_smooth = np.r_[0., np.cumsum(np.linalg.norm(np.diff(path_smooth, axis=0), axis=1))] / 1000.
     print("  光滑轨迹曲率: B 样条解析导数")
 else:
     dist_smooth, radii_smooth = compute_turn_radii(path_smooth)
@@ -129,7 +125,7 @@ else:
     dist_raw, radii_raw = np.array([]), np.array([])
 
 # 统计
-min_R_smooth = radii_smooth.min()
+min_R_smooth = data['stats']['min_turn_radius']
 mean_R_smooth = radii_smooth.mean()
 min_feasible = dynamics.get_min_feasible_radius()
 min_cruise = dynamics.get_min_turn_radius(dynamics.cruise_speed)
@@ -297,7 +293,7 @@ else:
 
 plt.tight_layout()
 
-output_path = "output_5zones/turn_radius_analysis.png"
+output_path = trajectory_output_path("turn_radius_analysis.png")
 plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
 plt.close()
 

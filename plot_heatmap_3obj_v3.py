@@ -147,7 +147,7 @@ draw_heatmap(axes[0], T_mat, cmap_T,
 
 draw_heatmap(axes[1], C_mat, cmap_C,
              title='累积暴露',
-             unit='无量纲',
+             unit='暴露时间 (s)',
              fmt='%.1f')
 
 draw_heatmap(axes[2], F_mat, cmap_F,

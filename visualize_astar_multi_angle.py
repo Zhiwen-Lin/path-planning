@@ -6,6 +6,7 @@
 4个不同视角，配色专业，适合一区期刊
 """
 
+from trajectory_data_loader import load_trajectory_data, trajectory_output_path
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -46,23 +47,10 @@ env = RadarEnvironment5Zones()
 env.generate(seed=42)
 
 # 尝试加载已规划路径
-PICKLE_PATH = "output_5zones/planned_path.pkl"
-if os.path.exists(PICKLE_PATH):
-    print("[2/4] 加载已规划路径...")
-    with open(PICKLE_PATH, 'rb') as f:
-        data = pickle.load(f)
-    path = np.array(data['path'])
-    stats = data['stats']
-    start = data['start']
-    goal = data['goal']
-    # 从 pickle 读取权重，与 main.py 保持一致
-    _w_risk = data['w_risk']
-    _w_time = data['w_time']
-    _w_fuel = data['w_fuel']
-    print(f"  ✓ 已加载: {len(path)} 个路径点, 航程 {stats['L']/KM:.1f} km")
-else:
-    print("[2/4] 未找到缓存，请先运行 main.py 生成 planned_path.pkl")
-    import sys; sys.exit(1)
+data = load_trajectory_data()
+path = np.asarray(data['path'])
+stats, start, goal = data['stats'], data['start'], data['goal']
+_w_time, _w_risk, _w_fuel = data['w_time'], data['w_risk'], data['w_fuel']
 
 print(f"\n路径规划完成: {len(path)}个点")
 
@@ -217,7 +205,7 @@ fig.legend(handles=legend_elements, loc='upper right',
 
 plt.tight_layout(rect=[0, 0, 1, 0.96])
 
-output_path = "output_5zones/astar_3d_multi_view.png"
+output_path = trajectory_output_path("astar_3d_multi_view.png")
 plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
 plt.close()
 

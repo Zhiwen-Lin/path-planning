@@ -225,6 +225,8 @@ def selection_data():
     data['schema_version'] = sweep.SWEEP_SCHEMA_VERSION
     data['smoothOK'] = True
     data['高度包络满足'] = True
+    data['run_signature'] = 'test-signature'
+    data['平滑版本'] = smoothing.SMOOTHING_VERSION
     return data
 
 
@@ -294,6 +296,7 @@ class ResumeTests(unittest.TestCase):
                                ('EXCEL_FILE', os.path.join(tmp, 'sweep.xlsx'))]:
                 stack.enter_context(patch.object(sweep, key, value))
             stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            stack.enter_context(patch('analysis_data_loader.current_experiment_signature', return_value='test-signature'))
             planner = Mock()
             baseline = dict.fromkeys(('T_min', 'T_max', 'C_min', 'C_max', 'F_min', 'F_max', 'L0', 'T0', 'C0'), 1.)
             planner.baseline_manager.ensure.return_value = baseline

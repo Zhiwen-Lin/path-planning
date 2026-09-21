@@ -6,6 +6,7 @@
 分析轨迹是否穿过雷达区，生成专业图表
 """
 
+from trajectory_data_loader import load_trajectory_data, trajectory_output_path
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -43,23 +44,10 @@ env.generate(seed=42)
 threat = EnvironmentThreatModel(env, model='power', power_n=4.0)
 
 # 尝试加载已规划路径
-PICKLE_PATH = "output_5zones/planned_path.pkl"
-if os.path.exists(PICKLE_PATH):
-    print("\n加载已规划轨迹...")
-    with open(PICKLE_PATH, 'rb') as f:
-        data = pickle.load(f)
-    path = np.array(data['path'])
-    stats = data['stats']
-    start = data['start']
-    goal = data['goal']
-    # 从 pickle 读取权重，与 main.py 保持一致
-    _w_risk = data['w_risk']
-    _w_time = data['w_time']
-    _w_fuel = data['w_fuel']
-    print(f"  已加载: {len(path)} 个航点, 航程 {stats['L']/1000:.1f} km")
-else:
-    print("\n未找到缓存路径，请先运行 main.py 生成 planned_path.pkl")
-    import sys; sys.exit(1)
+data = load_trajectory_data()
+path = np.asarray(data['path'])
+stats, start, goal = data['stats'], data['start'], data['goal']
+_w_time, _w_risk, _w_fuel = data['w_time'], data['w_risk'], data['w_fuel']
 
 print(f"路径航点数: {len(path)}")
 
@@ -217,7 +205,7 @@ ax2.set_facecolor('#FAFAFA')
 # 计算累积距离
 distances = [0]
 for i in range(1, len(path)):
-    d = np.linalg.norm(path[i, :2] - path[i-1, :2])
+    d = np.linalg.norm(path[i] - path[i-1])
     distances.append(distances[-1] + d)
 distances = np.array(distances) / KM
 
@@ -277,7 +265,7 @@ fig.suptitle('轨迹-雷达交互分析',
 
 plt.tight_layout(rect=[0, 0, 1, 0.96])
 
-output_path = "output_5zones/radar_interaction_analysis_sci.png"
+output_path = trajectory_output_path("radar_interaction_analysis_sci.png")
 plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
 plt.close()
 

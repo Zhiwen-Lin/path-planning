@@ -10,6 +10,7 @@ analyze_radar_interaction_v2.py - 轨迹-雷达交互分析（高质量重构版
 2. 各雷达区穿透统计（距离、暴露度）
 """
 
+from trajectory_data_loader import load_trajectory_data, trajectory_output_path
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -64,15 +65,7 @@ env = RadarEnvironment5Zones()
 env.generate(seed=42)
 threat = EnvironmentThreatModel(env, model='power', power_n=4.0)
 
-PICKLE_PATH = "output_5zones/planned_path.pkl"
-if not os.path.exists(PICKLE_PATH):
-    print(f"\n错误: 未找到 {PICKLE_PATH}")
-    print("请先运行 main.py 生成轨迹文件")
-    import sys; sys.exit(1)
-
-print("\n[1/2] 加载轨迹数据...")
-with open(PICKLE_PATH, 'rb') as f:
-    data = pickle.load(f)
+data = load_trajectory_data()
 
 path = np.array(data['path'])
 stats = data['stats']
@@ -211,7 +204,7 @@ ax.set_ylim([0, 100])
 # 添加统计信息文本框
 info_text = (f"轨迹统计:\n"
             f"  航程: {stats['L']/1000:.1f} km\n"
-            f"  累积暴露: {stats.get('C_risk', 0):.2f}\n"
+            f"  累积暴露: {stats['Crisk']:.2f} s\n"
             f"  飞行时间: {stats.get('T', 0)/60:.1f} min\n"
             f"  燃油: {stats.get('F', 0):.2f} kg\n"
             f"\n权重配置:\n"
@@ -228,7 +221,7 @@ ax.text(0.98, 0.02, info_text,
 
 plt.tight_layout()
 
-output = os.path.join(OUTDIR, 'radar_interaction_overview.png')
+output = trajectory_output_path('radar_interaction_overview.png')
 fig.savefig(output, dpi=600, bbox_inches='tight', facecolor='white')
 print(f"  ✓ 已保存: {output}")
 plt.close()
@@ -241,13 +234,13 @@ print("=" * 80)
 for radar_id, info in penetration_info.items():
     if info['count'] > 0:
         print(f"\n雷达区 R{radar_id+1} (中心: {info['center'][0]:.1f}, {info['center'][1]:.1f} km)")
-        print(f"  穿透次数: {info['count']}")
+        print(f"  穿透采样段数: {info['count']}")
 
         avg_dist = np.mean([p['dist_to_center'] for p in info['penetrations']])
         avg_expo = np.mean([p['exposure'] for p in info['penetrations']])
 
         print(f"  平均距中心: {avg_dist:.2f} km")
-        print(f"  平均暴露度: {avg_expo:.4f}")
+        print(f"  区内采样段融合探测概率均值 (max-Pd): {avg_expo:.4f}")
 
 print("\n" + "=" * 80)
 print("  完成！")

@@ -32,7 +32,7 @@ from analysis_data_loader import load_sweep_dataframe, analysis_output_dir
 warnings.filterwarnings('ignore')
 
 # ── 路径配置 ──────────────────────────────────────────────────────────────────
-# 默认读取 output_5zones/sweep_2d_time_fuel.xlsx；也可用环境变量
+# 默认只读取当前版本 sweep 工作簿；也可用环境变量
 # SWEEP_FILE / ANALYSIS_OUTDIR 覆盖，不再绑定作者本机 D: 盘。
 OUTDIR = str(analysis_output_dir())
 
@@ -67,7 +67,7 @@ print("=" * 80)
 print("\n[1/2] 读取数据...")
 df, DATA = load_sweep_dataframe()
 
-# 最大高度：V5 直接按列名读取；旧表由共享 loader 自动兼容。
+# 最大高度按列名读取；共享 loader 已检查完整性、成功状态及来源签名。
 df['alt_km'] = df['altm'] / 1000.0
 if not np.allclose(df['alt_km'], df['altkm'], atol=1e-6, equal_nan=True):
     print("  ⚠ 警告：最大高度两列（km/m）不一致，请检查数据表！")
@@ -162,7 +162,7 @@ for i, wf in enumerate(wf_vals):
     handles.append(h)
 
 ax.set_xlabel('最大飞行高度 (千米)', fontsize=11, weight='bold')
-ax.set_ylabel('累积暴露', fontsize=11, weight='bold')
+ax.set_ylabel('累积暴露 C (s)', fontsize=11, weight='bold')
 ax.set_title('(c) 高度-暴露相关性', fontsize=12, weight='bold', pad=10)
 ax.grid(True, linestyle='--', alpha=0.4)
 

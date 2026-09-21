@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Portable loader for old and V5 sweep_2d Excel schemas."""
+"""One validated data source for formal sweep analysis and plotting."""
 from __future__ import annotations
 
-import glob
 import os
 from pathlib import Path
 from typing import Optional, Tuple
 
 import pandas as pd
+import numpy as np
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_SWEEP = ROOT / "output_5zones" / "sweep_2d_time_fuel_v5_3_1.xlsx"
@@ -51,16 +51,55 @@ def resolve_sweep_file(path: Optional[str] = None) -> Path:
         raise FileNotFoundError(p)
     if DEFAULT_SWEEP.exists():
         return DEFAULT_SWEEP
-    candidates = sorted(
-        (Path(x) for x in glob.glob(str(ROOT / "output_5zones" / "sweep_2d_time_fuel*.xlsx"))
-         if not x.endswith('.tmp.xlsx')),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    if candidates:
-        return candidates[0]
     raise FileNotFoundError(
-        f"No sweep Excel found. Run sweep_2d.py first or set SWEEP_FILE. Expected {DEFAULT_SWEEP}")
+        f"Current sweep Excel is missing: {DEFAULT_SWEEP}. Finish sweep_2d.py first; "
+        "old workbooks are never selected automatically.")
+
+
+def current_experiment_signature():
+    from baseline_manager import BaselineManager
+    from sweep_2d import BASELINE_PKL, experiment_signature
+    baseline = BaselineManager(str(ROOT / BASELINE_PKL)).load()
+    if baseline is None:
+        raise ValueError('A valid local baseline.pkl is required to verify the formal sweep')
+    return experiment_signature(baseline)
+
+
+def validate_sweep_dataframe(df, require_complete=True, expected_signature=None):
+    """Reject failed, mixed, stale-schema or incomplete formal experiment data."""
+    from sweep_2d import SWEEP_SCHEMA_VERSION, COMBOS
+    from trajectory_smoothing import SMOOTHING_VERSION
+    required = {'wt', 'wr', 'wf', 'T', 'C', 'F', 'smoothOK',
+                '高度包络满足', 'schema_version', 'run_signature', '平滑版本'}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f'Missing sweep columns: {sorted(missing)}')
+    data = df.copy()
+    numeric = data[['wt', 'wr', 'wf', 'T', 'C', 'F']].apply(pd.to_numeric, errors='coerce')
+    if data.empty or not np.isfinite(numeric.to_numpy()).all():
+        raise ValueError('Sweep weights and T/C/F must be nonempty and finite')
+    if not data['schema_version'].eq(SWEEP_SCHEMA_VERSION).all():
+        raise ValueError('Current sweep schema is required')
+    if not data['平滑版本'].eq(SMOOTHING_VERSION).all():
+        raise ValueError('Current smoothing version is required')
+    signatures = data['run_signature']
+    if signatures.isna().any() or signatures.nunique() != 1 or not str(signatures.iloc[0]).strip():
+        raise ValueError('Sweep contains missing or mixed run signatures')
+    if expected_signature is not None and not signatures.eq(expected_signature).all():
+        raise ValueError('Sweep signature does not match the current source/configuration/baseline')
+    if not data['smoothOK'].eq(True).all() or not data['高度包络满足'].eq(True).all():
+        raise ValueError('Sweep contains failed or altitude-invalid cases')
+    if (numeric[['T', 'F']] <= 0).any().any() or (numeric['C'] < 0).any():
+        raise ValueError('Invalid physical T/C/F metrics')
+    if not np.allclose(numeric['wr'], 1., rtol=0, atol=1e-9):
+        raise ValueError('The screening experiment requires w_risk=1')
+    pairs = list(zip(numeric['wt'].round(6), numeric['wf'].round(6)))
+    if len(set(pairs)) != len(pairs) or not set(pairs).issubset(set(COMBOS)):
+        raise ValueError('Duplicate or unexpected weight combinations')
+    if require_complete and set(pairs) != set(COMBOS):
+        raise ValueError('Formal analysis requires all 72 successful weight combinations')
+    data[numeric.columns] = numeric
+    return data
 
 
 def analysis_output_dir(path: Optional[str] = None) -> Path:
@@ -101,4 +140,4 @@ def load_sweep_dataframe(path: Optional[str] = None) -> Tuple[pd.DataFrame, Path
                 df[c] = pd.to_numeric(df[c], errors="coerce")
             except Exception:
                 pass
-    return df, source
+    return validate_sweep_dataframe(df, expected_signature=current_experiment_signature()), source

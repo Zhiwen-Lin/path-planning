@@ -26,7 +26,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import os
 import warnings
-from analysis_data_loader import load_sweep_dataframe, analysis_output_dir
+from analysis_data_loader import load_sweep_dataframe, analysis_output_dir, validate_sweep_dataframe
 
 def select_representatives(df, require_complete=True):
     """Paper Sec. 16; exact ties use other metrics, then ascending weights.
@@ -35,30 +35,7 @@ def select_representatives(df, require_complete=True):
     valid dataset. Constant objective columns contribute zero ideal distance.
     Behavior fingerprints and neighbor scores remain plotting diagnostics.
     """
-    from sweep_2d import SWEEP_SCHEMA_VERSION, COMBOS
-    required = ['wt', 'wr', 'wf', 'T', 'C', 'F', 'smoothOK',
-                '高度包络满足', 'schema_version']
-    missing = set(required) - set(df.columns)
-    if missing:
-        raise ValueError(f'Missing sweep columns: {sorted(missing)}')
-    data = df.copy()
-    numeric = data[['wt', 'wr', 'wf', 'T', 'C', 'F']].apply(pd.to_numeric, errors='coerce')
-    if not np.isfinite(numeric.to_numpy()).all():
-        raise ValueError('Weights and T/C/F must all be finite')
-    if data.empty or not data['schema_version'].eq(SWEEP_SCHEMA_VERSION).all():
-        raise ValueError('Current V5.3.1 sweep data are required; rerun the sweep')
-    if not data['smoothOK'].eq(True).all() or not data['高度包络满足'].eq(True).all():
-        raise ValueError('Sweep contains failed or altitude-invalid cases')
-    if (numeric[['T', 'F']] <= 0).any().any() or (numeric['C'] < 0).any():
-        raise ValueError('Invalid physical T/C/F metrics')
-    if not np.allclose(numeric['wr'], 1.0, rtol=0, atol=1e-9):
-        raise ValueError('The screening experiment requires w_risk=1')
-    pairs = list(zip(numeric['wt'].round(6), numeric['wf'].round(6)))
-    if len(set(pairs)) != len(pairs):
-        raise ValueError('Duplicate weight combinations')
-    if require_complete and set(pairs) != set(COMBOS):
-        raise ValueError('Formal selection requires all 72 weight combinations')
-    data[numeric.columns] = numeric
+    data = validate_sweep_dataframe(df, require_complete=require_complete)
     objectives = data[['T', 'C', 'F']]
     spans = objectives.max() - objectives.min()
     scaled = (objectives - objectives.min()) / spans.where(spans > 0, 1.0)
@@ -201,7 +178,7 @@ def main():
     ax.grid(which='minor', color='white', lw=1.0, alpha=0.7)
     ax.tick_params(which='minor', size=0)
     cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
-    cb.set_label('log$_{10}$(累积暴露+0.05)', fontsize=11)
+    cb.set_label('log$_{10}$(C / 1 s + 0.05)', fontsize=11)
 
     # (b) 时间-暴露分布：颜色 = 高度策略
     ax = axes[1]
@@ -222,7 +199,7 @@ def main():
     ymax = max(float((df['C'] + 0.05).max()) * 1.25, 0.2)
     ax.set_ylim(0.04, ymax)
     ax.set_xlabel('飞行时间（分钟）', weight='bold')
-    ax.set_ylabel('累积暴露（对数坐标）', weight='bold')
+    ax.set_ylabel('累积暴露 C (s，对数坐标)', weight='bold')
     ax.set_title('(b) 时间-暴露权衡（颜色=最大高度策略）', weight='bold', fontsize=12)
 
     label_offsets = {'绕飞': (10, 2), '平衡': (-84, 0), '快穿': (-72, -6), '省油': (8, 10)}

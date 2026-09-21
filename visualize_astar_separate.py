@@ -9,6 +9,7 @@ A* 路径可视化 - 4张独立图片（优化配色版）
 4. 高度变化分析图
 """
 
+from trajectory_data_loader import load_trajectory_data, trajectory_output_path
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -48,24 +49,11 @@ env = RadarEnvironment5Zones()
 env.generate(seed=42)
 
 # 尝试加载已规划路径
-PICKLE_PATH = "output_5zones/planned_path.pkl"
-if os.path.exists(PICKLE_PATH):
-    print("[2/5] 加载已规划路径...")
-    with open(PICKLE_PATH, 'rb') as f:
-        data = pickle.load(f)
-    path = np.array(data['path'])
-    stats = data['stats']
-    start = data['start']
-    goal = data['goal']
-    planner_L0 = data['L0']
-    # 从 pickle 读取权重，与 main.py 保持一致
-    _w_risk = data['w_risk']
-    _w_time = data['w_time']
-    _w_fuel = data['w_fuel']
-    print(f"  ✓ 已加载: {len(path)} 个路径点, 航程 {stats['L']/KM:.1f} km")
-else:
-    print("[2/5] 未找到缓存，请先运行 main.py 生成 planned_path.pkl")
-    import sys; sys.exit(1)
+data = load_trajectory_data()
+path = np.asarray(data['path'])
+stats, start, goal = data['stats'], data['start'], data['goal']
+planner_L0 = data['L0']
+_w_time, _w_risk, _w_fuel = data['w_time'], data['w_risk'], data['w_fuel']
 
 print("[5/5] 生成可视化...")
 
@@ -190,9 +178,9 @@ ax.legend(loc='upper left', fontsize=11, framealpha=0.9)
 ax.view_init(elev=20, azim=45)
 
 plt.tight_layout()
-plt.savefig("output_5zones/astar_3d_trajectory.png", dpi=300, bbox_inches='tight', facecolor='white')
+plt.savefig(trajectory_output_path("astar_3d_trajectory.png"), dpi=300, bbox_inches='tight', facecolor='white')
 plt.close()
-print("    ✓ 已保存: output_5zones/astar_3d_trajectory.png")
+print('    ✓ 已保存: ' + trajectory_output_path('astar_3d_trajectory.png') + '')
 
 # ============================================================================
 # 图2：高度剖面图
@@ -236,9 +224,9 @@ ax.set_ylim(0, 11)  # 0-11km
 ax.legend(loc='upper right', fontsize=10)
 
 plt.tight_layout()
-plt.savefig("output_5zones/astar_altitude_profile.png", dpi=300, bbox_inches='tight', facecolor='white')
+plt.savefig(trajectory_output_path("astar_altitude_profile.png"), dpi=300, bbox_inches='tight', facecolor='white')
 plt.close()
-print("    ✓ 已保存: output_5zones/astar_altitude_profile.png")
+print('    ✓ 已保存: ' + trajectory_output_path('astar_altitude_profile.png') + '')
 
 # ============================================================================
 # 图3：俯视图
@@ -300,9 +288,9 @@ ax.grid(True, alpha=0.3, linestyle='--')
 ax.legend(loc='upper left', fontsize=11, framealpha=0.9)
 
 plt.tight_layout()
-plt.savefig("output_5zones/astar_topview.png", dpi=300, bbox_inches='tight', facecolor='white')
+plt.savefig(trajectory_output_path("astar_topview.png"), dpi=300, bbox_inches='tight', facecolor='white')
 plt.close()
-print("    ✓ 已保存: output_5zones/astar_topview.png")
+print('    ✓ 已保存: ' + trajectory_output_path('astar_topview.png') + '')
 
 # ============================================================================
 # 图4：高度变化分析
@@ -345,15 +333,15 @@ ax.text(0.98, 0.98, info_text, transform=ax.transAxes,
        bbox=dict(boxstyle='round', facecolor='#FFEB3B', alpha=0.9, edgecolor='black', linewidth=1.5))
 
 plt.tight_layout()
-plt.savefig("output_5zones/astar_altitude_changes.png", dpi=300, bbox_inches='tight', facecolor='white')
+plt.savefig(trajectory_output_path("astar_altitude_changes.png"), dpi=300, bbox_inches='tight', facecolor='white')
 plt.close()
-print("    ✓ 已保存: output_5zones/astar_altitude_changes.png")
+print('    ✓ 已保存: ' + trajectory_output_path('astar_altitude_changes.png') + '')
 
 print("\n" + "=" * 80)
 print("✓ 所有图片生成完成！")
 print("=" * 80)
 print("\n生成的图片：")
-print("  1. output_5zones/astar_3d_trajectory.png - 3D轨迹图（半球雷达建模）")
-print("  2. output_5zones/astar_altitude_profile.png - 高度剖面图")
-print("  3. output_5zones/astar_topview.png - 俯视图")
-print("  4. output_5zones/astar_altitude_changes.png - 高度变化分析")
+print('  1. ' + trajectory_output_path('astar_3d_trajectory.png') + ' - 3D轨迹图（半球雷达建模）')
+print('  2. ' + trajectory_output_path('astar_altitude_profile.png') + ' - 高度剖面图')
+print('  3. ' + trajectory_output_path('astar_topview.png') + ' - 俯视图')
+print('  4. ' + trajectory_output_path('astar_altitude_changes.png') + ' - 高度变化分析')

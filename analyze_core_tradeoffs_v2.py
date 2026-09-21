@@ -33,6 +33,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from scipy import stats
 import os, warnings
 from analysis_data_loader import load_sweep_dataframe, analysis_output_dir
+from select_representative_weights import select_representatives
 warnings.filterwarnings('ignore')
 
 # ── 路径配置 ──────────────────────────────────────────────────────────────────
@@ -141,7 +142,7 @@ for i, wf in enumerate(wf_vals):
               color=COLORS_6[i], edgecolors='black', linewidth=0.8)
 
 ax.set_xlabel('绕行增加 (%)', fontsize=11, weight='bold')
-ax.set_ylabel('累积暴露', fontsize=11, weight='bold')
+ax.set_ylabel('累积暴露 C (s)', fontsize=11, weight='bold')
 ax.set_title('(b) 绕行-暴露权衡曲线', fontsize=12, weight='bold', pad=10)
 ax.legend(loc='best', fontsize=9, framealpha=0.95, ncol=2)
 ax.grid(True, linestyle='--', alpha=0.4)
@@ -206,7 +207,7 @@ gs = fig.add_gridspec(3, 3, hspace=0.35, wspace=0.35)
 ax = fig.add_subplot(gs[0:2, 0:2])
 
 metrics = ['T_min', 'C_val', 'F_kg', 'detour_ratio', 'altm_km']
-metric_names = ['飞行时间\n(min)', '累积暴露', '燃油消耗\n(kg)', '绕行增加\n(%)', '最大高度\n(km)']
+metric_names = ['飞行时间\n(min)', '累积暴露 C (s)', '燃油消耗\n(kg)', '绕行增加\n(%)', '最大高度\n(km)']
 
 corr_matrix = df[metrics].corr()
 
@@ -248,7 +249,7 @@ ax.text(0.05, 0.95, f'$r={r:.3f}$', transform=ax.transAxes,
        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.85))
 
 ax.set_xlabel('飞行时间 (分钟)', fontsize=11, weight='bold')
-ax.set_ylabel('累积暴露', fontsize=11, weight='bold')
+ax.set_ylabel('累积暴露 C (s)', fontsize=11, weight='bold')
 ax.set_title('(b) 时间-暴露关系', fontsize=11, weight='bold', pad=8)
 ax.legend(loc='best', fontsize=8, framealpha=0.9, ncol=2)
 ax.grid(True, linestyle='--', alpha=0.4)
@@ -285,7 +286,7 @@ ax.text(0.05, 0.95, f'$r={r:.3f}$', transform=ax.transAxes,
        fontsize=10, verticalalignment='top', weight='bold',
        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.85))
 
-ax.set_xlabel('累积暴露', fontsize=11, weight='bold')
+ax.set_xlabel('累积暴露 C (s)', fontsize=11, weight='bold')
 ax.set_ylabel('燃油消耗 (千克)', fontsize=11, weight='bold')
 ax.set_title('(d) 暴露-油耗关系', fontsize=11, weight='bold', pad=8)
 ax.legend(loc='best', fontsize=8, framealpha=0.9, ncol=2)
@@ -305,7 +306,7 @@ ax.text(0.05, 0.95, f'$r={r:.3f}$', transform=ax.transAxes,
        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.85))
 
 ax.set_xlabel('最大高度 (千米)', fontsize=11, weight='bold')
-ax.set_ylabel('累积暴露', fontsize=11, weight='bold')
+ax.set_ylabel('累积暴露 C (s)', fontsize=11, weight='bold')
 ax.set_title('(e) 高度-暴露关系', fontsize=11, weight='bold', pad=8)
 ax.legend(loc='best', fontsize=8, framealpha=0.9, ncol=2)
 ax.grid(True, linestyle='--', alpha=0.4)
@@ -314,34 +315,24 @@ ax.grid(True, linestyle='--', alpha=0.4)
 ax = fig.add_subplot(gs[2, 2])
 
 # 归一化
-time_norm = (df['T_min'] - df['T_min'].min()) / (df['T_min'].max() - df['T_min'].min())
-expo_norm = (df['C_val'] - df['C_val'].min()) / (df['C_val'].max() - df['C_val'].min())
-fuel_norm = (df['F_kg'] - df['F_kg'].min()) / (df['F_kg'].max() - df['F_kg'].min())
-
-# 展示几个典型配置
-configs = [
-    (0.0, 0.0, '隐蔽优先\n(0.0, 0.0)'),
-    (0.5, 0.3, '均衡模式\n(0.5, 0.3)'),
-    (1.0, 0.4, '快速优先\n(1.0, 0.4)'),
-]
+objectives = df[['T', 'C', 'F']]
+spans = objectives.max() - objectives.min()
+plot_scale = spans.where(spans > 0, 1.0)
+representatives = select_representatives(df)
 
 x_pos = [0, 1, 2]
 x_labels = ['时间', '暴露', '油耗']
 
-for wt_val, wf_val, label in configs:
-    row = df[(df['wt'] == wt_val) & (df['wf'] == wf_val)]
-    if len(row) > 0:
-        row = row.iloc[0]
-        t_n = (row['T_min'] - df['T_min'].min()) / (df['T_min'].max() - df['T_min'].min())
-        e_n = (row['C_val'] - df['C_val'].min()) / (df['C_val'].max() - df['C_val'].min())
-        f_n = (row['F_kg'] - df['F_kg'].min()) / (df['F_kg'].max() - df['F_kg'].min())
-
-        ax.plot(x_pos, [t_n, e_n, f_n], marker='o', linewidth=2.5,
-               markersize=8, label=label, alpha=0.85)
+for name in ('绕飞', '平衡', '快穿'):
+    row = representatives[name]
+    values = (row[['T', 'C', 'F']].astype(float) - objectives.min()) / plot_scale
+    label = f"{name}\n({row['wt']:.1f}, {row['wf']:.1f})"
+    ax.plot(x_pos, values, marker='o', linewidth=2.5,
+            markersize=8, label=label, alpha=0.85)
 
 ax.set_xticks(x_pos)
 ax.set_xticklabels(x_labels, fontsize=11, weight='bold')
-ax.set_ylabel('归一化值 (0-1)', fontsize=11, weight='bold')
+ax.set_ylabel('本批数据 min-max 缩放 (0-1)', fontsize=11, weight='bold')
 ax.set_title('(f) 典型配置的三目标权衡', fontsize=11, weight='bold', pad=8)
 ax.legend(loc='best', fontsize=9, framealpha=0.95)
 ax.grid(True, linestyle='--', alpha=0.4, axis='y')

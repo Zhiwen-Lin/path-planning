@@ -13,7 +13,7 @@ Altitude rule:
     -> endpoint 0 m
 
 Before the long 72-case run:
-  python -m unittest -v test_regressions
+  python -m unittest -v test_regressions test_postprocessing
   python preflight_check.py
 
 Expected:
@@ -58,6 +58,18 @@ After ALL 72 cases pass:
   python select_representative_weights.py
 Risk = minimum C; Time = minimum T; Balanced = minimum normalized ideal-point
 distance in (T,C,F); Fuel = minimum F for reference only.
+
+All sweep analysis scripts require a complete successful current-version
+workbook and a matching source/configuration/baseline signature. There is no
+automatic fallback to an older workbook.
+
+To plot a completed sweep case directly (PowerShell):
+  $env:TRAJECTORY_FILE = "output_5zones/sweep_cases_v5_3_1/wt_0.3_wf_0.2.pkl"
+  python visualize_speed_profile_english.py
+  Remove-Item Env:TRAJECTORY_FILE
+The same input option works for all trajectory/radar plot scripts. Selected
+case figures go to analysis_figures/<case filename>/ unless ANALYSIS_OUTDIR
+is set. Without TRAJECTORY_FILE, current main.py caches are used and checked.
 
 Do not mix the old V5.1/V5.2/V5.3 workbook/interim data into the final paper
 dataset. The new schema automatically rejects old interim rows, but keep the

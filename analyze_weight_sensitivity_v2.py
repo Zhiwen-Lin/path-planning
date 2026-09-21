@@ -210,7 +210,7 @@ def draw_heatmap(ax, mat, cmap, title, unit, fmt):
     ax.set_title(title, fontsize=13, weight='bold', pad=10)
 
 draw_heatmap(axes[0], T_mat, cmap_T, '飞行时间', '分钟', '%.1f')
-draw_heatmap(axes[1], C_mat, cmap_C, '累积暴露', '无量纲', '%.1f')
+draw_heatmap(axes[1], C_mat, cmap_C, '累积暴露', '暴露时间 (s)', '%.1f')
 draw_heatmap(axes[2], F_mat, cmap_F, '燃油消耗', '千克', '%.2f')
 
 plt.tight_layout(pad=1.5, w_pad=2.5)

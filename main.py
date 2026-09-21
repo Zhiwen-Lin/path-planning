@@ -29,6 +29,7 @@ from datetime import datetime
 from radar_environment_5zones import RadarEnvironment5Zones
 from environment_threat_model import EnvironmentThreatModel
 from fixed_wing_dynamics import FixedWingDynamics
+from trajectory_data_loader import main_trajectory_signature
 from astar_risk_planner import AStarRiskPlanner
 from two_stage_planner import two_stage_planning, build_corridor_reference
 from trajectory_smoothing import (smooth_with_validation, compare_paths,
@@ -487,6 +488,7 @@ print(f"    C range = [{baseline['C_min']:.6f}, {baseline['C_max']:.6f}] exposur
 print(f"    F range = [{baseline['F_min']:.6f}, {baseline['F_max']:.6f}] kg")
 
 coarse_data = {
+    'trajectory_signature': main_trajectory_signature(baseline),
     'path': coarse_path,
     'stats': coarse_stats,
     'grid_res_xy': COARSE_GRID_XY,
@@ -508,6 +510,7 @@ print("  ✓ 粗网格路径已保存: output_5zones/planned_path_coarse.pkl")
 
 # 保存细网格路径（最终结果 - 光滑后）
 fine_data = {
+    'trajectory_signature': main_trajectory_signature(baseline),
     'path': path,              # 光滑后路径
     'path_raw': path_raw,      # 原始细网格路径（未光滑）
     'stats': stats,            # 光滑后统计
@@ -549,12 +552,17 @@ print("\n[Step 5/7] 生成粗网格可视化（用于对比）...")
 print("\n  粗网格 - 4张独立图片...")
 import subprocess
 
+# main.py controls its own coarse/fine input and output directories.
+plot_env = os.environ.copy()
+for key in ('TRAJECTORY_FILE', 'ANALYSIS_OUTDIR'):
+    plot_env.pop(key, None)
+
 # 临时切换到粗网格数据
 shutil.copy("output_5zones/planned_path_coarse.pkl", "output_5zones/planned_path_temp.pkl")
 shutil.copy("output_5zones/planned_path_coarse.pkl", "output_5zones/planned_path.pkl")
 
-result = subprocess.run(['python', 'visualize_astar_separate.py'],
-                       capture_output=True, text=True)
+result = subprocess.run([sys.executable, 'visualize_astar_separate.py'],
+                       capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     # 重命名为粗网格版本
     if os.path.exists("output_5zones/astar_3d_trajectory.png"):
@@ -570,8 +578,8 @@ else:
     print("    ✗ 粗网格 - 生成失败")
 
 print("\n  粗网格 - 多角度3D图...")
-result = subprocess.run(['python', 'visualize_astar_multi_angle.py'],
-                       capture_output=True, text=True)
+result = subprocess.run([sys.executable, 'visualize_astar_multi_angle.py'],
+                       capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     if os.path.exists("output_5zones/astar_3d_multi_view.png"):
         shutil.move("output_5zones/astar_3d_multi_view.png", "output_5zones/astar_3d_multi_view_coarse.png")
@@ -582,8 +590,8 @@ else:
 print("\n  粗网格 - 速度剖面将在恢复细网格数据后做三组统一对比...")
 
 print("\n  粗网格 - 雷达交互分析图...")
-result = subprocess.run(['python', 'analyze_radar_interaction.py'],
-                       capture_output=True, text=True)
+result = subprocess.run([sys.executable, 'analyze_radar_interaction.py'],
+                       capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     if os.path.exists("output_5zones/radar_interaction_analysis_sci.png"):
         shutil.move("output_5zones/radar_interaction_analysis_sci.png",
@@ -603,24 +611,24 @@ with open("output_5zones/planned_path.pkl", 'wb') as f:
     pickle.dump(fine_data, f)
 
 print("\n  细网格 - 4张独立图片...")
-result = subprocess.run(['python', 'visualize_astar_separate.py'],
-                       capture_output=True, text=True)
+result = subprocess.run([sys.executable, 'visualize_astar_separate.py'],
+                       capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     print("    ✓ 细网格 - 4张独立图片生成完成")
 else:
     print("    ✗ 细网格 - 生成失败")
 
 print("\n  细网格 - 多角度3D图...")
-result = subprocess.run(['python', 'visualize_astar_multi_angle.py'],
-                       capture_output=True, text=True)
+result = subprocess.run([sys.executable, 'visualize_astar_multi_angle.py'],
+                       capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     print("    ✓ 细网格 - 多角度3D图生成完成")
 else:
     print("    ✗ 细网格 - 生成失败")
 
 print("\n  三组速度-加速度对比图（粗网格 / 细网格原始 / B样条最终）...")
-result = subprocess.run(['python', 'visualize_speed_profile_english.py'],
-                       capture_output=True, text=True)
+result = subprocess.run([sys.executable, 'visualize_speed_profile_english.py'],
+                       capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     print("    ✓ 三组速度-加速度对比图生成完成")
 else:
@@ -629,16 +637,16 @@ else:
         print(result.stderr[-1500:])
 
 print("\n  细网格 - 雷达交互分析图...")
-result = subprocess.run(['python', 'analyze_radar_interaction.py'],
-                       capture_output=True, text=True)
+result = subprocess.run([sys.executable, 'analyze_radar_interaction.py'],
+                       capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     print("    ✓ 细网格 - 雷达交互分析图生成完成")
 else:
     print("    ✗ 细网格 - 生成失败")
 
 print("\n  细网格 - 转弯半径分析图...")
-result = subprocess.run(['python', 'visualize_turn_radius.py'],
-                       capture_output=True, text=True)
+result = subprocess.run([sys.executable, 'visualize_turn_radius.py'],
+                       capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     print("    ✓ 细网格 - 转弯半径分析图生成完成")
 else:
@@ -699,7 +707,7 @@ if smooth_result['smoothed']:
     print(f"\n【光滑效果】")
     print(f"  光滑成功: ✓")
     print(f"  s参数: {smooth_result['s_param_used']:.1f}")
-    print(f"  候选评价数: {smooth_result['attempts']}（全部候选均已评价）")
+    print(f"  候选评价数: {smooth_result.get('total_candidate_evaluations', smooth_result['attempts'])}（含航向修复重试）")
     print(f"  选中候选: #{smooth_result.get('selected_candidate_index', -1)}, J_s={smooth_result.get('selection_score', float('nan')):.6f}")
     print(f"  航程变化: {stats_raw['L']/1000:.2f} → {stats['L']/1000:.2f} km "
           f"({((stats['L']/stats_raw['L'])-1)*100:+.2f}%)")
