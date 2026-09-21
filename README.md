@@ -1,4 +1,4 @@
-# 固定翼多目标路径规划 V5.3 FINAL
+# 固定翼多目标路径规划 V5.3.1
 
 面向五区雷达环境的固定翼路径规划与实验分析项目，综合考虑飞行时间、雷达暴露和燃油消耗，包含两阶段 A* 搜索、B 样条轨迹光滑、运动学约束验证和权重扫描。
 
@@ -19,6 +19,7 @@ python -m venv .venv
 先执行项目自带的预检：
 
 ```powershell
+python -m unittest -v test_regressions
 python preflight_check.py
 ```
 
@@ -28,19 +29,25 @@ python preflight_check.py
 python main.py
 ```
 
-完整权重扫描（重新计算基准并从头运行，会更新输出文件；需要保留的实验结果请先备份）：
+新版 72 组权重扫描（自动复用配置匹配的 anchor 基准）：
 
 ```powershell
-python sweep_2d.py --fresh
+python -u sweep_2d.py
 ```
 
-中断后继续兼容的 V5.3 扫描：
+中断后继续、或重试失败工况，使用同一命令即可。只有需要全部重算时才使用 `--fresh`；它会重新计算全部工况和三个 anchor。
+
+新版结果独立保存在 `output_5zones/sweep_2d_time_fuel_v5_3_1.xlsx`，不会覆盖原 V5.3 工作簿。每组的原始路径和最终轨迹保存在 `output_5zones/sweep_cases_v5_3_1/`，用于故障恢复及后续复核。不要同时运行两个扫描进程写入同一目录。
+
+全部 72 组通过后，按论文规则选择代表工况：
 
 ```powershell
-python sweep_2d.py
+python select_representative_weights.py
 ```
 
 运行参数和版本说明见 [RUN_FIRST.txt](RUN_FIRST.txt)、[VERSION.txt](VERSION.txt) 和 [REVISION_NOTES.md](REVISION_NOTES.md)。
+
+V5.3.1 统一了变速段的时间、暴露和燃油积分，速度边界为 `v(0)=33 m/s`。起点和终点高度保持 0 m，作为任务高度参考；模型不包含地面滑跑和着陆滑跑。全程执行失速速度下限。搜索网格、威胁模型、目标权重范围和 B 样条修复策略保持 V5.3 配置。
 
 ## 文件说明
 
@@ -56,6 +63,7 @@ python sweep_2d.py
 | `analysis_data_loader.py`、`analyze_*.py` | 实验数据读取与分析 |
 | `visualize_*.py`、`plot_heatmap_3obj_v3.py` | 轨迹和统计图表 |
 | `preflight_check.py` | 正式实验前的回归预检 |
+| `test_regressions.py` | 积分、速度、筛选及续跑回归测试 |
 | `AST_paper_detailed_plan_V5.3.md` | 论文详细规划 |
 | `output_5zones/` | 本地实验结果、缓存和图表 |
 

@@ -355,12 +355,16 @@ class AStarRiskPlanner:
         if self._collides(tuple(p0), tuple(p1)):
             return {'L': length, 'T': float('inf'), 'Crisk': float('inf'), 'F': float('inf')}
 
-        # Total segment time.  The adaptive profile returns path-speed
-        # magnitudes, so trapezoidal average speed is appropriate here.
+        # Constant tangential acceleration on each speed-profile segment:
+        # v(s)^2 is linear in distance, and dt = 2*ds/(v_left+v_right).
+        # This is the same model as the forward/backward speed planner.
+        if (v_start is None) != (v_end is None):
+            raise ValueError('Both endpoint speeds must be supplied together')
         if v_start is not None and v_end is not None:
-            v0 = max(float(v_start), 0.0)
-            v1 = max(float(v_end), 0.0)
-            v_avg = max(0.5 * (v0 + v1), 1e-3)
+            v0, v1 = float(v_start), float(v_end)
+            if not np.all(np.isfinite([v0, v1])) or min(v0, v1) < 0 or v0 + v1 <= 0:
+                raise ValueError('Endpoint speeds must be finite, nonnegative and not both zero')
+            v_avg = 0.5 * (v0 + v1)
             total_time = length / v_avg
         elif self.dynamics is not None:
             total_time = float(self.dynamics.get_segment_time(p0, p1, self.v_cruise))
@@ -370,8 +374,7 @@ class AStarRiskPlanner:
         n_seg = max(self.n_edge_samples - 1, 1)
         risk = 0.0
         fuel = 0.0
-        horiz_total = float(np.hypot(delta[0], delta[1]))
-        dh_total = float(delta[2])
+        integrated_time = 0.0
 
         for j in range(n_seg):
             a = j / n_seg
@@ -382,14 +385,15 @@ class AStarRiskPlanner:
             ds = float(np.linalg.norm(pb - pa))
 
             if v_start is not None and v_end is not None:
-                va = max((1.0 - a) * float(v_start) + a * float(v_end), 0.0)
-                vb = max((1.0 - b) * float(v_start) + b * float(v_end), 0.0)
-                dt = ds / max(0.5 * (va + vb), 1e-3)
+                va = np.sqrt((1.0 - a) * v0**2 + a * v1**2)
+                vb = np.sqrt((1.0 - b) * v0**2 + b * v1**2)
+                dt = 2.0 * ds / (va + vb)
             else:
                 # Search-stage motion is constant over a grid edge by
                 # construction, so divide the dynamics edge time uniformly.
                 dt = total_time / n_seg
 
+            integrated_time += dt
             pd = float(self.threat.calculate_risk(pm))
             risk += pd * dt
 
@@ -402,7 +406,10 @@ class AStarRiskPlanner:
                     v_horizontal, v_vertical, h_mid))
                 fuel += power * dt / self._fuel_heat_value()
 
-        return {'L': length, 'T': total_time, 'Crisk': risk, 'F': fuel}
+        # Preserve search-stage arithmetic; final T uses exactly the same
+        # time increments as C and F (also additive under segment splitting).
+        return {'L': length, 'T': integrated_time if v_start is not None else total_time,
+                'Crisk': risk, 'F': fuel}
 
     def _edge_cost(self, from_pos: Tuple[float, float, float],
                    to_pos: Tuple[float, float, float]) -> float:
@@ -523,7 +530,7 @@ class AStarRiskPlanner:
         shared baseline is available.
         """
         P = np.asarray(path, dtype=float)
-        if P.ndim != 2 or (len(P) and P.shape[1] != 3):
+        if P.ndim != 2 or P.shape[1] != 3 or not np.all(np.isfinite(P)):
             raise ValueError(f'path must have shape (n,3), got {P.shape}')
         if len(P) < 2:
             out = {'L': 0.0, 'T': 0.0, 'Crisk': 0.0, 'F': 0.0,
@@ -551,6 +558,10 @@ class AStarRiskPlanner:
             _, speeds, k_used, accels = self.dynamics.compute_speed_profile(
                 P, curvatures_in=curvatures,
                 strict_feasibility=strict_feasibility)
+
+        if strict_feasibility and speeds is not None and self.dynamics is not None:
+            # Do not trust externally supplied acceleration diagnostics.
+            accels = self.dynamics.validate_speed_profile(P, speeds, k_used)
 
         totals = {'L': 0.0, 'T': 0.0, 'Crisk': 0.0, 'F': 0.0}
         for i in range(len(P) - 1):

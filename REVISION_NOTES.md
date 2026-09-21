@@ -1,3 +1,70 @@
+# V5.3.1 evaluation consistency and repeatable sweep
+
+- Final speed segments now use constant tangential acceleration: squared
+  speed is linear in distance. Time, exposure and fuel use the same subsegment
+  time increments; constant Pd=1 gives C=T.
+- The mission begins at an airborne boundary with v(0)=v_stall=33 m/s.
+  No ground-roll or landing-roll model is claimed. Endpoint coordinates and
+  altitude envelope are unchanged. All samples obey the stall-speed floor.
+- Strict evaluation also validates externally supplied speed profiles and
+  computes acceleration from the actual speeds, rather than trusting supplied
+  acceleration diagnostics. NaN inputs and infeasible profiles are rejected.
+- Representative cases follow paper Sec. 16: minimum C, minimum T, minimum
+  Euclidean ideal-point distance after sweep min-max normalization. Fuel is
+  a reference point. Exact ties use other metrics then ascending weights;
+  constant metric columns contribute zero. Incomplete, failed, duplicate,
+  nonfinite or old-schema formal datasets are rejected before selection.
+- Sweep outputs use a new v5_3_1 suffix; old V5.3 outputs are preserved.
+  Every checkpoint row is checked against schema, source/configuration hash
+  and weights. Failed cases are retried and replaced instead of skipped.
+- Raw A* paths are atomically saved before postprocessing. Complete case files
+  additionally retain spline, validation, final path, speeds and accelerations.
+  Compatible retries reuse raw paths; completed case files can recover a lost
+  aggregate checkpoint update. Source/configuration changes invalidate reuse.
+- Pickles and Excel use temporary writes followed by replacement. If Excel is
+  locked, close it and run the sweep again: successful cases are skipped and
+  the workbook is exported from saved records.
+- Search-stage segment costs are unchanged, so a matching existing three-anchor
+  baseline can be reused. Prefer `python -u sweep_2d.py`; `--fresh` deliberately
+  recomputes anchors and all cases and is unnecessary for this version upgrade.
+- Run `python -m unittest -v test_regressions` and `python preflight_check.py`
+  before the formal sweep. Historical SHA256SUMS.txt describes the original
+  release only; Git commits and the experiment signature identify this revision.
+
+## Additional pre-existing limitation found during validation
+
+The cached pure-time anchor (1,0,0) is a valid raw search path and its raw
+metrics remain unchanged. Passing it directly through the coarse smoothing
+pipeline does not produce a feasible spline: the best diagnostic candidate
+has about 33.32 degrees of terminal-heading error (limit: 12 degrees).
+The smoothing implementation is unchanged in this revision. This case is not
+one of the 72 w_risk=1 screening cases. Do not present the raw anchor as a
+validated final trajectory in the Traditional comparison; that comparison
+still needs its own trajectory generation/validation. No heading limit was
+relaxed to make this diagnostic pass.
+
+## Validation completed on 2026-09-21
+
+- 21 automated regression tests passed, including the selection CLI, failed-case
+  retries, recovery of a complete case, atomic checkpoint failure and Excel lock.
+- All original preflight checks passed. All 24 Python files passed syntax parsing.
+- Re-evaluated the three stored raw anchors: L/T/C/F agree with their stored
+  metrics within numerical tolerance; the original baseline remains compatible.
+- Real-map risk case (0,1,0), using its stored anchor path: final T=2856.137976 s,
+  C=0, F=14.336817 kg; speed 33-55 m/s, analytical Rmin=1384.871952 m,
+  analytical maximum climb=14.253859 degrees; altitude and spline checks passed.
+- Real-map balanced case (0.3,1,0.2), including a new A* search: 57,385 iterations
+  and 19,355 expanded nodes, matching the original run. Final T=2578.928872 s,
+  C=18.922463, F=7.737316 kg; speed 33-55 m/s, analytical Rmin=1307.108896 m,
+  analytical maximum climb=14.805177 degrees; altitude and spline checks passed.
+  Its full case file is saved for recovery by the next default sweep run.
+- Validation environment: Python 3.13.5, NumPy 2.1.3, SciPy 1.15.3,
+  pandas 2.2.3, matplotlib 3.10.0, openpyxl 3.1.5.
+- The full revised 72-case sweep has not been run. Formal paper metrics must
+  come from the completed V5.3.1 run, not this two-case validation.
+
+---
+
 # V5.3 final sweep-stability revision
 
 This revision targets the 11 failed cases observed in the previous 72-case

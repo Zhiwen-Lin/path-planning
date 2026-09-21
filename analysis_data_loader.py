@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_SWEEP = ROOT / "output_5zones" / "sweep_2d_time_fuel.xlsx"
+DEFAULT_SWEEP = ROOT / "output_5zones" / "sweep_2d_time_fuel_v5_3_1.xlsx"
 DEFAULT_OUTDIR = ROOT / "analysis_figures"
 
 # V5 Chinese export columns -> compact names used by the existing analysis code.
@@ -52,7 +52,8 @@ def resolve_sweep_file(path: Optional[str] = None) -> Path:
     if DEFAULT_SWEEP.exists():
         return DEFAULT_SWEEP
     candidates = sorted(
-        (Path(x) for x in glob.glob(str(ROOT / "output_5zones" / "sweep_2d_time_fuel*.xlsx"))),
+        (Path(x) for x in glob.glob(str(ROOT / "output_5zones" / "sweep_2d_time_fuel*.xlsx"))
+         if not x.endswith('.tmp.xlsx')),
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
@@ -95,7 +96,7 @@ def load_sweep_dataframe(path: Optional[str] = None) -> Tuple[pd.DataFrame, Path
         df["altm"] = pd.to_numeric(df["altkm"], errors="coerce") * 1000.0
 
     for c in df.columns:
-        if c not in {"ts", "schema_version"}:
+        if c not in {"ts", "schema_version", "run_signature", "case_file", "错误"}:
             try:
                 df[c] = pd.to_numeric(df[c], errors="coerce")
             except Exception:

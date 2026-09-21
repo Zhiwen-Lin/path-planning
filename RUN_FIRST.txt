@@ -1,4 +1,4 @@
-V5.3 FINAL SWEEP PACKAGE
+V5.3.1 CONSISTENT EVALUATION SWEEP
 
 Mission endpoints are unchanged:
   START = (2000, 2000, 0) m
@@ -12,17 +12,23 @@ Altitude rule:
     -> endpoint 0 m
 
 Before the long 72-case run:
+  python -m unittest -v test_regressions
   python preflight_check.py
 
 Expected:
   ALL PRE-FLIGHT CHECKS PASSED
-  11/11 checks pass.
+  All regression tests and preflight checks pass.
 
-Recommended fresh formal sweep:
-  python sweep_2d.py --fresh
+Recommended V5.3.1 sweep (new output files; reuses a compatible anchor baseline):
+  python -u sweep_2d.py
 
-`--fresh` is exactly equivalent to:
+Only to intentionally recompute ALL cases AND anchors, use --fresh:
   python sweep_2d.py --no-resume --force-baseline
+To recompute all cases but retain the compatible anchor baseline, use --no-resume.
+
+Airborne start boundary: v(0) = v_stall = 33 m/s.
+No ground roll or landing rollout is simulated. All flight samples satisfy
+the stall-speed lower bound. Endpoint 0 m is the mission height reference.
 
 V5.3 coarse sweep settings:
   grid = 2000 m x 500 m
@@ -30,10 +36,25 @@ V5.3 coarse sweep settings:
   smoothing trust radius = 3015.90 m (1.05 x grid diagonal)
   fixed-wing max climb angle remains 15 deg (NOT relaxed)
 
-If the run is interrupted AFTER some V5.3 cases have completed:
+If the run is interrupted or contains failed cases:
   python sweep_2d.py
-will resume only V5.3-compatible interim rows.
+resumes only compatible successful rows, retries failures and reuses saved
+raw A* paths when the source/configuration signature matches.
 
-Do not mix the old V5.1/V5.2 sweep workbook/interim data into the final paper
+New files (old V5.3 files are retained):
+  output_5zones/sweep_2d_time_fuel_v5_3_1.xlsx
+  output_5zones/sweep2d_interim_v5_3_1.pkl
+  output_5zones/sweep_cases_v5_3_1/wt_*.pkl
+
+Each case saves raw path/statistics before smoothing and full spline, final
+path, speed, acceleration and metrics after success. Do not run two sweep
+processes simultaneously against these same output files.
+
+After ALL 72 cases pass:
+  python select_representative_weights.py
+Risk = minimum C; Time = minimum T; Balanced = minimum normalized ideal-point
+distance in (T,C,F); Fuel = minimum F for reference only.
+
+Do not mix the old V5.1/V5.2/V5.3 workbook/interim data into the final paper
 dataset. The new schema automatically rejects old interim rows, but keep the
 old workbook only as an archive/comparison file.

@@ -99,9 +99,7 @@ def _profile_time(path, speeds):
 
 
 def _operating_min(s, v, dyn):
-    takeoff_distance = dyn.v_stall ** 2 / (2.0 * dyn.max_horizontal_accel)
-    mask = s > takeoff_distance
-    return float(np.min(v[mask])) if np.any(mask) else float(np.min(v))
+    return float(np.min(v))
 
 
 def build_profiles(coarse_data, fine_data, dyn):
@@ -252,7 +250,7 @@ def main():
             f"{vmin*3.6:9.1f} {np.mean(p['v'])*3.6:9.1f} {vmaxa:9.2f}"
         )
 
-    print("\n* Vmin excludes the theoretical takeoff-distance region.")
+    print("\n* Vmin includes every point; the airborne start speed is the stall speed.")
     print("  Raw A* curves are polyline proxies; the B-spline curve is the final")
     print("  physically validated profile using analytic curvature.")
     print(f"\nSaved: {OUTPUT}")

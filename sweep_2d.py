@@ -14,14 +14,18 @@ exactly the same meaning as the planner and ``main.py`` outputs.
 """
 
 import argparse
+import hashlib
+import json
 import os
 import pickle
 import time
 from datetime import datetime
 from itertools import product
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import scipy
 
 from astar_risk_planner import AStarRiskPlanner
 from baseline_manager import DEFAULT_BASELINE_PATH
@@ -32,7 +36,7 @@ from trajectory_smoothing import smooth_with_validation, spline_curvature
 from altitude_constraints import DEFAULT_TRANSITION_DISTANCE_M
 
 KM = 1000.0
-SWEEP_SCHEMA_VERSION = "v5.3-grid-scaled-trust-climb-repair"
+SWEEP_SCHEMA_VERSION = "v5.3.1-consistent-time-airborne-start"
 
 W_RISK_FIXED = 1.0
 W_TIME_VALUES = np.round(np.arange(0.0, 1.1 + 1e-9, 0.1), 6).tolist()
@@ -70,32 +74,99 @@ START = (2000.0, 2000.0, 0.0)
 GOAL = (98000.0, 98000.0, 0.0)
 
 OUT_DIR = "output_5zones"
-INTERIM_PKL = os.path.join(OUT_DIR, "sweep2d_interim.pkl")
+INTERIM_PKL = os.path.join(OUT_DIR, "sweep2d_interim_v5_3_1.pkl")
 BASELINE_PKL = DEFAULT_BASELINE_PATH
-EXCEL_FILE = os.path.join(OUT_DIR, "sweep_2d_time_fuel.xlsx")
+EXCEL_FILE = os.path.join(OUT_DIR, "sweep_2d_time_fuel_v5_3_1.xlsx")
+CASE_DIR = os.path.join(OUT_DIR, "sweep_cases_v5_3_1")
 
 
-def load_interim():
+def atomic_pickle(path, value):
+    """A stopped write must not destroy the last complete checkpoint."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + '.tmp')
+    with tmp.open('wb') as f:
+        pickle.dump(value, f, protocol=pickle.HIGHEST_PROTOCOL)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def experiment_signature(baseline):
+    """Bind resumed results to the physics, postprocessing and configuration."""
+    root = Path(__file__).resolve().parent
+    files = ('sweep_2d.py', 'astar_risk_planner.py', 'baseline_manager.py',
+             'fixed_wing_dynamics.py', 'trajectory_smoothing.py',
+             'altitude_constraints.py', 'environment_threat_model.py',
+             'radar_environment_5zones.py')
+    payload = {
+        'schema': SWEEP_SCHEMA_VERSION,
+        'baseline_signature': baseline['signature']['sha256'],
+        'ranges': {k: baseline[k] for k in ('T_min', 'T_max', 'C_min', 'C_max', 'F_min', 'F_max')},
+        # Ignore Windows checkout line-ending changes, not actual source edits.
+        'files': {name: hashlib.sha256((root / name).read_text(encoding='utf-8-sig').encode()).hexdigest()
+                  for name in files},
+        'numpy': np.__version__, 'scipy': scipy.__version__,
+        'grid': [GRID_RES_XY, GRID_RES_Z], 'ds': FINAL_PATH_DS,
+        'trust': SMOOTHING_TRUST_RADIUS, 'combos': COMBOS, 'w_risk': W_RISK_FIXED,
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+
+
+def row_is_successful(row):
+    keys = ('飞行时间_s', '累积暴露_C', '燃油消耗_kg', '统一目标_J')
+    try:
+        return (row.get('平滑成功') == True and row.get('高度包络满足') == True
+                and all(np.isfinite(float(row[k])) for k in keys))
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def case_path(wt, wf):
+    return os.path.join(CASE_DIR, f'wt_{wt:.1f}_wf_{wf:.1f}.pkl')
+
+
+def load_case(path, signature):
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, 'rb') as f:
+            data = pickle.load(f)
+    except (OSError, EOFError, pickle.UnpicklingError):
+        return None
+    if not isinstance(data, dict) or data.get('run_signature') != signature:
+        return None
+    return data if 'raw_path' in data and 'raw_stats' in data else None
+
+
+def load_interim(run_signature=None):
     if not os.path.exists(INTERIM_PKL):
         return []
     try:
         with open(INTERIM_PKL, "rb") as f:
             rows = pickle.load(f)
     except Exception as exc:
-        print(f"  ! Cannot read old interim file: {exc}; starting clean")
-        return []
+        raise RuntimeError('Cannot read checkpoint; preserve it and use --no-resume to restart') from exc
     if not isinstance(rows, list):
-        return []
-    if rows and rows[0].get("schema_version") != SWEEP_SCHEMA_VERSION:
-        print("  ! Old interim schema detected; it cannot supply the new metrics. Ignoring it.")
-        return []
-    print(f"  ✓ Resume file contains {len(rows)} completed cases")
+        raise ValueError('Invalid sweep checkpoint: expected a list')
+    seen = set()
+    for row in rows:
+        if (not isinstance(row, dict) or row.get('schema_version') != SWEEP_SCHEMA_VERSION
+                or (run_signature is not None and row.get('run_signature') != run_signature)):
+            raise ValueError('Checkpoint version/configuration changed; use --no-resume (old data are not resumed)')
+        key = (row.get('权重_w_time'), row.get('权重_w_fuel'))
+        if key not in COMBOS or key in seen or row.get('权重_w_risk') != W_RISK_FIXED:
+            raise ValueError('Checkpoint has duplicate or unexpected weights')
+        seen.add(key)
+    print(f"  ✓ Resume file contains {sum(row_is_successful(r) for r in rows)} successful cases; failures will be retried")
     return rows
 
 
 def already_done(rows, wt, wf, tol=1e-9):
     return any(
-        abs(float(r.get("权重_w_time", 999)) - wt) < tol
+        row_is_successful(r)
+        and r.get('schema_version') == SWEEP_SCHEMA_VERSION
+        and abs(float(r.get("权重_w_time", 999)) - wt) < tol
         and abs(float(r.get("权重_w_fuel", 999)) - wf) < tol
         for r in rows
     )
@@ -187,6 +258,10 @@ def make_success_row(wt, wf, raw_path, raw_stats, final_path, smooth,
         "曲率变化积分_JkappaPrime": val["curvature_variation_integral"],
         "末端航向误差_deg": val["terminal_heading_error_deg"],
         "速度变化率最大_m_s2": final_stats["max_speed_change_rate"],
+        "最低速度_m_s": final_stats['speed_min'],
+        "最高速度_m_s": final_stats['speed_max'],
+        "解析最大爬升角_deg": val['max_climb_angle'],
+        "解析最小转弯半径_m": val['min_turn_radius'],
         "平滑成功": True,
         "高度包络满足": bool(val.get("altitude_ok", True)),
         "高度B样条修复": bool(smooth.get("altitude_repaired", False)),
@@ -279,7 +354,8 @@ def run_sweep(resume=True, force_baseline=False):
         force=force_baseline)
     planner.set_baseline(baseline)
 
-    rows = load_interim() if resume else []
+    run_signature = experiment_signature(baseline)
+    rows = load_interim(run_signature) if resume else []
     combos = sorted(COMBOS, key=lambda p: (p[1], p[0]))
     n_todo = sum(not already_done(rows, wt, wf) for wt, wf in combos)
     done = 0
@@ -300,18 +376,46 @@ def run_sweep(resume=True, force_baseline=False):
         t0 = time.time()
         raw_stats = None
         smooth = None
+        artifact_path = case_path(wt, wf)
         try:
-            raw_path, raw_stats = planner._run_astar(
-                start_arr, goal_arr, compute_baseline=False)
-            final_path, smooth, final_stats, _, _ = finalise_path(
+            cached = load_case(artifact_path, run_signature) if resume else None
+            if cached is not None and row_is_successful(cached.get('row', {})):
+                # Recover the narrow interruption window between writing a
+                # complete case and updating the aggregate checkpoint.
+                row = cached['row']
+                rows = [r for r in rows if (r['权重_w_time'], r['权重_w_fuel']) != (wt, wf)]
+                rows.append(row)
+                atomic_pickle(INTERIM_PKL, rows)
+                print('  ✓ Recovered complete saved case')
+                continue
+            if cached is None:
+                raw_path, raw_stats = planner._run_astar(
+                    start_arr, goal_arr, compute_baseline=False)
+                cached = {'run_signature': run_signature,
+                          'weights': (wt, W_RISK_FIXED, wf),
+                          'raw_path': raw_path, 'raw_stats': raw_stats,
+                          'search_elapsed_s': time.time() - t0,
+                          'baseline': baseline}
+                # Save before smoothing: retrying failed postprocessing must
+                # not require another expensive A* search.
+                atomic_pickle(artifact_path, cached)
+            else:
+                print('  ✓ Reusing saved A* path')
+                raw_path, raw_stats = cached['raw_path'], cached['raw_stats']
+                planner.set_mission(start_arr, goal_arr)
+            post_start = time.time()
+            final_path, smooth, final_stats, speed, accel = finalise_path(
                 raw_path, planner, dynamics, threat)
             if final_path is None:
                 raise RuntimeError(smooth.get("message", "B-spline smoothing failed"))
-            elapsed = time.time() - t0
+            elapsed = cached['search_elapsed_s'] + time.time() - post_start
             row = make_success_row(
                 wt, wf, raw_path, raw_stats, final_path, smooth,
                 final_stats, elapsed, baseline)
-            rows.append(row)
+            row.update(run_signature=run_signature, case_file=artifact_path)
+            atomic_pickle(artifact_path, {**cached, 'final_path': final_path,
+                          'smooth': smooth, 'final_stats': final_stats,
+                          'speed': speed, 'accel': accel, 'row': row})
             repair_tags = []
             if row.get("高度B样条修复", False):
                 repair_tags.append("alt-repair")
@@ -326,11 +430,14 @@ def run_sweep(resume=True, force_baseline=False):
         except (RuntimeError, ValueError) as exc:
             elapsed = time.time() - t0
             print(f"  X failed after {elapsed:.1f}s: {exc}")
-            rows.append(make_failure_row(
-                wt, wf, elapsed, exc, raw_stats=raw_stats, smooth=smooth))
+            row = make_failure_row(
+                wt, wf, elapsed, exc, raw_stats=raw_stats, smooth=smooth)
+            row.update(run_signature=run_signature, case_file=artifact_path)
 
-        with open(INTERIM_PKL, "wb") as f:
-            pickle.dump(rows, f, protocol=pickle.HIGHEST_PROTOCOL)
+        # Replace a failed previous attempt instead of appending a duplicate.
+        rows = [r for r in rows if (r['权重_w_time'], r['权重_w_fuel']) != (wt, wf)]
+        rows.append(row)
+        atomic_pickle(INTERIM_PKL, rows)
 
     return rows, baseline
 
@@ -360,7 +467,10 @@ def export_excel(rows, baseline):
     extras = [c for c in df.columns if c not in ordered]
     df_out = df[ordered + extras].sort_values(["权重_w_fuel", "权重_w_time"])
 
-    with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
+    # Keep the previous complete workbook intact if export is interrupted or
+    # Excel has the destination file open. The checkpoint remains usable.
+    temp_excel = str(Path(EXCEL_FILE).with_suffix('.tmp.xlsx'))
+    with pd.ExcelWriter(temp_excel, engine="openpyxl") as writer:
         df_out.to_excel(writer, sheet_name="全部数据", index=False)
         pd.DataFrame([{
             "baseline_version": baseline.get("version"),
@@ -391,6 +501,11 @@ def export_excel(rows, baseline):
             pivot.index.name = "w_time \\ w_fuel"
             pivot.to_excel(writer, sheet_name=sheet_name[:31])
 
+    try:
+        os.replace(temp_excel, EXCEL_FILE)
+    except PermissionError:
+        raise PermissionError(f'Close Excel and rerun; completed results are safe in {INTERIM_PKL}. '
+                              f'Export also retained at {temp_excel}')
     print(f"\n✓ Excel saved: {EXCEL_FILE}")
     print(f"  rows={len(df_out)}, valid final trajectories={len(valid)}")
 
@@ -431,6 +546,8 @@ def main():
         resume=args.resume, force_baseline=args.force_baseline)
     print_summary(rows)
     export_excel(rows, baseline)
+    if len(rows) != len(COMBOS) or not all(row_is_successful(r) for r in rows):
+        raise SystemExit('Some cases failed. Results saved; rerun without --fresh to retry failures.')
 
 
 if __name__ == "__main__":

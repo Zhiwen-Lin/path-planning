@@ -365,6 +365,46 @@ class FixedWingDynamics:
     #  速度剖面计算 (含转弯半径 + 失速速度约束)
     # ------------------------------------------------------------------
 
+    def validate_speed_profile(self, path, speeds, curvatures=None):
+        """Validate supplied physical speeds; return segment accelerations.
+
+        This also protects the final evaluator from bypassing strict checks
+        by passing an already computed (or externally loaded) speed profile.
+        """
+        points = np.asarray(path, dtype=float)
+        v = np.asarray(speeds, dtype=float)
+        if (points.ndim != 2 or points.shape[1] != 3 or v.shape != (len(points),)
+                or not np.all(np.isfinite(points)) or not np.all(np.isfinite(v))):
+            raise ValueError('Path and speeds must be finite with matching shapes')
+        if np.any(v < self.v_stall - 1e-6) or np.any(v > self.max_horizontal_speed + 1e-6):
+            raise ValueError('Speed violates the stall/maximum speed envelope')
+        if curvatures is not None:
+            k = np.asarray(curvatures, dtype=float)
+            if k.shape != v.shape or not np.all(np.isfinite(k)):
+                raise ValueError('Curvatures must be finite and match speeds')
+            if np.any(v**2 * np.abs(k) > self.g * np.tan(np.radians(self.max_bank_angle_deg)) + 1e-6):
+                raise ValueError('Speed/curvature violates bank-angle constraint')
+        d = np.diff(points, axis=0)
+        ds = np.linalg.norm(d, axis=1)
+        moving = ds > 1e-9
+        if np.any(~moving & (np.abs(np.diff(v)) > 1e-6)):
+            raise ValueError('Speed changes over a zero-length segment')
+        dt = np.divide(2 * ds, v[:-1] + v[1:])
+        accel = np.divide(np.diff(v), dt, out=np.zeros_like(ds), where=moving)
+        if (np.any(accel > self.max_horizontal_accel + 1e-6)
+                or np.any(accel < -self.max_decel - 1e-6)):
+            raise ValueError('Speed profile violates acceleration/deceleration limits')
+        slope = np.degrees(np.arctan2(np.abs(d[:, 2]), np.hypot(d[:, 0], d[:, 1])))
+        if np.any(slope > self.max_climb_angle_deg + 1e-6):
+            raise ValueError('Path violates climb-angle constraint')
+        # For constant acceleration, the largest vertical speed on a straight
+        # segment is at its faster endpoint, not necessarily at its midpoint.
+        vz = np.divide(d[:, 2], ds, out=np.zeros_like(ds), where=moving)
+        vz *= np.maximum(v[:-1], v[1:])
+        if np.any(vz > self.max_ascend_speed + 1e-6) or np.any(vz < -self.max_descend_speed - 1e-6):
+            raise ValueError('Speed profile violates vertical-rate constraints')
+        return np.append(accel, 0.0) if len(v) else np.zeros(0)
+
     def compute_speed_profile(self, dense_path: np.ndarray,
                               curvatures_in: np.ndarray = None,
                               v_ceiling: float = None,
@@ -382,6 +422,8 @@ class FixedWingDynamics:
           6. 前向/后向切向加减速度约束
 
         注意：
+          - 起点是已进入飞行段的边界，速度为 v_stall；不模拟地面滑跑。
+            端点高度 0 m 保留为任务高度参考，不代表从静止起飞。
           - 对 B 样条必须尽量传入解析曲率 curvatures_in。
           - 对原始折线，Menger 曲率只能作为网格尺度下的“转弯代理量”。
           - strict_feasibility=True 时，一旦发现“低于失速速度仍无法满足”的
@@ -393,16 +435,20 @@ class FixedWingDynamics:
         s_dense, speeds, curvatures, accelerations
         """
         dense_path = np.asarray(dense_path, dtype=float)
+        if dense_path.ndim != 2 or dense_path.shape[1] != 3 or not np.all(np.isfinite(dense_path)):
+            raise ValueError('dense_path must be a finite (n,3) array')
         n = len(dense_path)
 
         if v_ceiling is None:
             v_ceiling = self.cruise_speed
         v_ceiling = float(min(v_ceiling, self.max_horizontal_speed))
+        if not np.isfinite(v_ceiling) or v_ceiling < self.v_stall:
+            raise ValueError('v_ceiling must be finite and at least v_stall')
 
         if n == 0:
             return (np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0))
         if n == 1:
-            return (np.zeros(1), np.zeros(1), np.zeros(1), np.zeros(1))
+            return (np.zeros(1), np.full(1, self.v_stall), np.zeros(1), np.zeros(1))
 
         # ====================================================================
         # Step 1: 路径几何
@@ -415,6 +461,8 @@ class FixedWingDynamics:
 
         if curvatures_in is not None:
             curvatures = np.abs(np.asarray(curvatures_in, dtype=float)).ravel()
+            if not np.all(np.isfinite(curvatures)):
+                raise ValueError('curvatures_in must be finite')
             if len(curvatures) != n:
                 raise ValueError(
                     f"curvatures_in 长度 {len(curvatures)} 与路径点数 {n} 不一致")
@@ -486,10 +534,8 @@ class FixedWingDynamics:
 
         v_max = np.minimum(v_max, vertical_caps)
 
-        # 任何非起点局部上限低于失速速度，都表示“速度怎么选都不可行”
-        below_stall_cap = np.where(
-            (np.arange(n) > 0) & (v_max < self.v_stall - 1e-9)
-        )[0]
+        # The stall constraint applies to every point, including the start.
+        below_stall_cap = np.where(v_max < self.v_stall - 1e-9)[0]
 
         problems = []
         if turn_infeasible:
@@ -509,10 +555,10 @@ class FixedWingDynamics:
             print("[警告] compute_speed_profile: " + "；".join(problems))
 
         # 非严格模式为了能画出原始折线对比，仍以失速速度作为最低工作速度。
-        v_max[1:] = np.maximum(v_max[1:], self.v_stall)
+        v_max = np.maximum(v_max, self.v_stall)
 
-        # 起点静止
-        v_max[0] = 0.0
+        # Airborne boundary; no unmodelled ground roll below stall speed.
+        v_max[0] = self.v_stall
 
         # 终点不高于巡航速度
         v_max[-1] = min(v_max[-1], self.cruise_speed)
@@ -521,7 +567,7 @@ class FixedWingDynamics:
         # Step 3: Forward pass
         # ====================================================================
         v_fwd = np.zeros(n, dtype=float)
-        v_fwd[0] = 0.0
+        v_fwd[0] = self.v_stall
 
         for i in range(n - 1):
             ds = seg_dists[i]
@@ -546,6 +592,8 @@ class FixedWingDynamics:
             v_bwd[i] = min(v_fwd[i], v_required)
 
         speeds = v_bwd.copy()
+        if strict_feasibility:
+            self.validate_speed_profile(dense_path, speeds, curvatures)
 
         # ====================================================================
         # Step 5: 从速度反算切向加速度
@@ -575,22 +623,19 @@ class FixedWingDynamics:
         decel_viol = float(np.max(-self.max_decel - accelerations))
 
         if accel_viol > 1e-3:
+            if strict_feasibility:
+                raise ValueError('Tangential acceleration exceeds the limit')
             print(f"[警告] compute_speed_profile: 加速度超限 {accel_viol:.4f} m/s²")
         if decel_viol > 1e-3:
+            if strict_feasibility:
+                raise ValueError('Tangential deceleration exceeds the limit')
             print(f"[警告] compute_speed_profile: 减速度超限 {decel_viol:.4f} m/s²")
 
-        s_takeoff = self.v_stall ** 2 / (2.0 * self.max_horizontal_accel)
-        after_takeoff = s_dense > s_takeoff
-        n_stall = 0
-        if np.any(after_takeoff):
-            n_stall = int(np.sum(
-                speeds[after_takeoff] < self.v_stall - 1e-3
-            ))
-            if n_stall > 0:
-                print(
-                    f"[警告] compute_speed_profile: 起飞段之后有 "
-                    f"{n_stall} 点低于失速速度"
-                )
+        n_stall = int(np.sum(speeds < self.v_stall - 1e-3))
+        if n_stall:
+            if strict_feasibility:
+                raise ValueError('Speed falls below stall speed')
+            print(f'[警告] compute_speed_profile: {n_stall} 点低于失速速度')
 
         climb_rate_viol = np.where(
             vertical_rates > self.max_ascend_speed + 1e-3
@@ -625,7 +670,9 @@ class FixedWingDynamics:
             'below_stall_cap_points': np.asarray(below_stall_cap, dtype=int),
             'vertical_rates': vertical_rates,
             'segment_times': segment_times,
-            'n_stall_after_takeoff': n_stall,
+            'n_stall_points': n_stall,
+            'n_stall_after_takeoff': n_stall,  # compatibility: now checks every point
+            'start_speed': float(speeds[0]),
             'strict_feasibility': bool(strict_feasibility),
         }
 
