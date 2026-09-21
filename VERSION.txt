@@ -1,0 +1,3 @@
+Fixed-wing multi-objective planner V5.3 FINAL
+sweep schema: v5.3-grid-scaled-trust-climb-repair
+smoothing: V5.3-adaptive-altitude-climb-envelope-terminal-heading

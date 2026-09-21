@@ -1,0 +1,39 @@
+V5.3 FINAL SWEEP PACKAGE
+
+Mission endpoints are unchanged:
+  START = (2000, 2000, 0) m
+  GOAL  = (98000, 98000, 0) m
+
+Altitude rule:
+  endpoint 0 m
+    -> 5 km transition
+    -> en-route 1000-10000 m
+    -> 5 km terminal transition
+    -> endpoint 0 m
+
+Before the long 72-case run:
+  python preflight_check.py
+
+Expected:
+  ALL PRE-FLIGHT CHECKS PASSED
+  11/11 checks pass.
+
+Recommended fresh formal sweep:
+  python sweep_2d.py --fresh
+
+`--fresh` is exactly equivalent to:
+  python sweep_2d.py --no-resume --force-baseline
+
+V5.3 coarse sweep settings:
+  grid = 2000 m x 500 m
+  3-D max neighbour step = 2872.28 m
+  smoothing trust radius = 3015.90 m (1.05 x grid diagonal)
+  fixed-wing max climb angle remains 15 deg (NOT relaxed)
+
+If the run is interrupted AFTER some V5.3 cases have completed:
+  python sweep_2d.py
+will resume only V5.3-compatible interim rows.
+
+Do not mix the old V5.1/V5.2 sweep workbook/interim data into the final paper
+dataset. The new schema automatically rejects old interim rows, but keep the
+old workbook only as an archive/comparison file.

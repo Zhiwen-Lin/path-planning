@@ -1,0 +1,6 @@
+# Direct dependencies; versions are not pinned to an unverified environment.
+numpy
+scipy
+matplotlib
+pandas
+openpyxl

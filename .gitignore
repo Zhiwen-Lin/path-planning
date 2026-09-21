@@ -1,0 +1,32 @@
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Generated experiment results (keep existing files locally)
+/output_5zones/
+/analysis_figures/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Editor, OS, and temporary files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+~$*
+*.swp
+*.swo
+*.tmp
+*.log
