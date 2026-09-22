@@ -1,0 +1,330 @@
+\section{Numerical results and discussion}
+\label{sec:results}
+
+%% 第四章执行总顺序（以下 %% 均为写作/实验备注，不进入编译正文）：
+%% 1. 冻结并备份当前代码、baseline、72 组结果及运行环境，先验收数据，再画图。
+%% 2. 完成 4.1 参数与环境图；不运行新搜索即可完成这一部分。
+%% 3. 对现有 sweep 做 4.3，得到确定的代表权重；完成选择后再做 4.2/4.4。
+%% 4. 单独运行时间单目标完整流程，以及所选代表权重的完整两阶段流程。
+%%    若代表权重重复，只运行一次，并如实报告代表规则得到同一个解。
+%% 5. 用每次 main 的粗/细原始/最终路径完成 4.2，用代表案例完成 4.4。
+%% 6. 最后写第四章开头的实验概览、摘要结果句和结论，不提前填提升百分比。
+%% 已完成且签名一致的 72 组不用为了画图再次运行。不要使用 --fresh 作为画图步骤。
+%% 下面正文只给出代码可核实的设置；4.2--4.4 的结果叙述等待实测数据。
+
+\subsection{Simulation setup}
+\label{sec:setup}
+
+The simulation uses a $100\times100~\mathrm{km}$ horizontal workspace
+containing five ground-based radar sites and five associated cylindrical
+exclusion zones. The radar layout is generated with seed 42 and held fixed
+throughout the preference comparison. Each radar has a hemispherical
+coverage radius of $15~\mathrm{km}$, while its colocated hard zone has a
+horizontal radius of $6~\mathrm{km}$ and a height of $5~\mathrm{km}$.
+The power-law exposure model uses an inner-radius ratio of 0.3 and an
+exponent of 4, with overlapping fields combined by their maximum.
+These settings define a controlled synthetic environment; they are not
+calibrated measurements of a particular radar or aircraft system.
+
+The mission endpoints are $(2,2,0)$ and $(98,98,0)~\mathrm{km}$.
+The en-route altitude interval is $1$--$10~\mathrm{km}$, with a
+$5~\mathrm{km}$ horizontal transition distance at each endpoint.
+The zero endpoint altitude is the reference used for the airborne
+trajectory model, as described in Section~\ref{pr:sec:constraints}.
+The vehicle and energy parameters are listed in Table~\ref{tab:aircraft};
+the numerical planning settings are summarized in
+Table~\ref{tab:planning}.
+
+\begin{table}[t]
+ \centering
+ \caption{Parameters of the reduced fixed-wing model.}
+ \label{tab:aircraft}
+ \small
+ \begin{tabular}{ll}
+ \hline
+ Parameter & Value \\
+ \hline
+ Constant mass & $1100~\mathrm{kg}$ \\
+ Wing reference area & $11.5~\mathrm{m^2}$ \\
+ Gravitational acceleration & $9.81~\mathrm{m\,s^{-2}}$ \\
+ Stall / cruise / aircraft maximum speed & $33 / 55 / 83~\mathrm{m\,s^{-1}}$ \\
+ Maximum ascent / descent rate & $12 / 15~\mathrm{m\,s^{-1}}$ \\
+ Tangential acceleration / deceleration bound & $3 / 4~\mathrm{m\,s^{-2}}$ \\
+ Maximum bank / flight-path angle & $30^\circ / 15^\circ$ \\
+ Structural turning-radius floor & $50~\mathrm{m}$ \\
+ Zero-lift drag coefficient / aspect ratio & $0.025 / 18$ \\
+ Oswald efficiency & $0.85$ \\
+ Climb / overall propulsive efficiency & $0.80 / 0.30$ \\
+ Descent energy recovery fraction & $0$ \\
+ Fuel lower heating value & $43~\mathrm{MJ\,kg^{-1}}$ \\
+ Sea-level density / density scale height & $1.225~\mathrm{kg\,m^{-3}} / 8500~\mathrm{m}$ \\
+ \hline
+ \end{tabular}
+\end{table}
+
+\begin{table}[t]
+ \centering
+ \caption{Search and trajectory-evaluation settings. The sweep and the
+ complete two-stage method use different input resolutions and locality limits.}
+ \label{tab:planning}
+ \small
+ \begin{tabular}{ll}
+ \hline
+ Parameter & Value \\
+ \hline
+ Coarse horizontal / vertical spacing & $2000 / 500~\mathrm{m}$ \\
+ Fine horizontal / vertical spacing & $200 / 50~\mathrm{m}$ \\
+ Three-dimensional fine-search corridor radius & $600~\mathrm{m}$ \\
+ Spline locality limit, fine input & $200~\mathrm{m}$ \\
+ Spline locality limit, coarse sweep input & $3015.90~\mathrm{m}$ \\
+ Search edge probes / quadrature subsegments & $10 / 9$ \\
+ A* heuristic inflation factor & $1.0$ \\
+ Initial smoothing budgets & $21$ \\
+ Spline geometric validation samples & $4096$ \\
+ Arc-length inversion probes & $8000$ \\
+ Final target sampling distance & $100~\mathrm{m}$ \\
+ Endpoint / terminal-heading tolerance & $2~\mathrm{m} / 12^\circ$ \\
+ Initial speed & $33~\mathrm{m\,s^{-1}}$ \\
+ Terminal speed & No prescribed equality \\
+ \hline
+ \end{tabular}
+\end{table}
+
+Two protocols address different experimental questions. The complete
+two-stage protocol comprises coarse search, corridor-restricted fine search,
+spline refinement and strict speed validation. It supports the controlled
+comparisons and representative-case assessment. The sensitivity protocol
+uses coarse search followed by refinement and speed validation for each
+of the 72 weight configurations specified in
+Section~\ref{pr:sec:objective}. Its locality limit is scaled to the coarse
+cell diagonal,
+\begin{equation}
+ r_s^{\mathrm{sweep}}=1.05\sqrt{2(2000)^2+(500)^2}
+                    \simeq3015.90~\mathrm{m},
+ \label{ex:eq:sweeptrust}
+\end{equation}
+whereas the complete method uses $r_s=200~\mathrm{m}$ relative to the fine
+polyline. The two protocols share the threat and aircraft models, objective
+scales, candidate-ranking rule and final metric definitions. Their
+different search domains and locality limits are retained explicitly
+when interpreting the results.
+
+Search-stage and final-trajectory quantities are distinguished throughout
+the analysis. Flight time $T$, exposure $C$ and fuel $F$ are reported in
+seconds, exposure-seconds and kilograms, respectively; path length is
+reported in kilometres. The exposure integral measures time-weighted
+presence in the prescribed field, not a mission-level detection probability.
+Cross-preference comparisons use the physical vector $(T,C,F)$: a value
+of $J$ computed with one weight vector cannot directly rank a trajectory
+scored with another. For a controlled comparison at fixed weights, the
+shared anchor normalization provides the common scalar objective.
+
+%% 4.1 操作与核对：
+%% A. 环境来自 radar_environment_5zones.py::generate(seed=42)，正文使用 main.py
+%%    实际端点 (2,2,0)/(98,98,0) km，不用环境类内部默认的 (5,5)/(95,95)。
+%% B. 从运行缓存/原始环境导出五站坐标；归档精确值，不用截图反读坐标。
+%% C. 填真实实验机器 CPU、RAM、操作系统、Python/NumPy/SciPy 版本。
+%%    本次写作机器的软件版本不能自动充当先前实验的版本。
+%% D. 归档 baseline.pkl 中的三个 anchor 原始 T/C/F 与六个尺度参考值；
+%%    三条 anchor 未做最终样条处理，不混进“最终轨迹”比较表。
+%% E. 计时应分别报告 anchor（一次性）、粗搜索、细搜索、样条、速度/评价。
+%%    不把绘图/Excel 导出时间混进搜索时间，不把缓存加载时间当重新计算时间。
+%%    只有实际补做重复测量后才能写重复次数、均值/标准差；同图重复计时
+%%    反映计算波动，不是多环境统计证据。未测步骤写未记录，不填 0。
+%% F. preflight_check.py 可作运行前检查；程序测试不能代替实验数据验收。
+%% G. 建议最小数值核查：对选定轨迹另做更密集几何/积分采样，比较最小净空、
+%%    最大曲率、最大角度和 T/C/F 的变化；固定几何时无需重跑 A* 或 72 组。
+%%    100 -> 50 m 若重新分配速度，属于“离散化+速度策略”联合变化，须单列；
+%%    不把它说成仅积分误差。未完成上述核查前不宣称数值收敛或连续安全认证。
+
+%% FIGURE PLACEHOLDER: environment overview; let LaTeX assign figure numbers.
+%% Panels: (a) 3-D hemispheres and hard cylinders with mission endpoints;
+%% (b) exposure slices at stated altitudes with shared [0,1] color scale.
+%% Hard-zone disk only appears when the slice altitude is <= 5 km.
+%% Use physical axis units and distinguish hard zones from traversable exposure.
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/threat_environment.pdf}
+%% \caption{Synthetic mission environment with five radar fields and colocated
+%% hard exclusion zones. Soft exposure remains traversable and contributes
+%% to the time-integrated objective.}
+%% \label{fig:environment}
+%% \end{figure}
+
+\subsection{Overall performance and controlled ablation}
+\label{sec:ablation}
+
+%% 本节回答三个不同问题：任务代价是否改变选路；细网格改变了哪些搜索几何；
+%% 样条与速度规划如何得到被数值验收的飞行轨迹。不要把三种变化混成单一增益。
+%% 建议总表：行=Time-oriented final / Risk-aware final / Coarse raw /
+%% Fine raw（后两行按同一风险权重）；列=表示阶段、权重、L、T、C、F、J、
+%% 节点数、分阶段耗时。Raw 行的指标加 search 上标，不与 final 行算“总提升”。
+%% 几何/动力学指标另表或配图，避免一张表过宽。表头明确单位及检查口径。
+
+\subsubsection{Time-oriented A* versus risk-aware planning}
+\label{sec:objective_comparison}
+
+%% 研究问题：在相同离散结构与后处理下，加入暴露/燃油偏好是否改变路线，
+%% 带来多大的暴露--时间--燃油权衡，而不是证明 A* 被一种新搜索机制击败。
+%% 步骤 1：定义 baseline 权重 (w_T,w_C,w_F)=(1,0,0)。这是时间单目标 A*；
+%%         因垂直率限时，不能无条件写成 shortest-distance A*。
+%% 步骤 2：固定一组公开选择规则得到的 risk-aware 权重（例如 4.3 的平衡解）；
+%%         不挑一个只让结果最好看的权重；main 默认 (0.3,1,0.2) 不是自动平衡解。
+%% 步骤 3：两组均用完整两阶段流程、同一环境/端点/网格/半径/飞机/归一化/
+%%         平滑与速度算法。路线不同导致 corridor 不同，这是目标改变的后果。
+%%         该实验评估完整流程的偏好效果，不是严格锁定同一个 fine graph。
+%% 步骤 4：每次运行先归档 planned_path.pkl、planned_path_coarse.pkl、baseline、
+%%         完整日志及参数/代码快照；main 默认文件名会被下一次运行覆盖。
+%% 步骤 5：仅在双方最终可行时，列最终 L、T、C、F、最高高度及计算耗时。
+%%         想比较 J 时，用同一个声明的参考权重重新评价两条最终轨迹；
+%%         不比较各自不同权重下的 J，且 J 可为负，不宜笼统算百分比下降。
+%% 步骤 6：物理指标百分比采用 100*(new-base)/base，明确负值表示下降；
+%%         base=0（尤其 C=0）时报告绝对差，不加任意 epsilon 制造百分数。
+%% 图：同一坐标/同一高度风险说明下叠加两条三维路径和俯视路径，补高度剖面。
+%% 段落顺序：共同设置 -> 数字差异 -> 通过/绕过/爬升避让的几何证据 -> 代价。
+%% 结论边界：可说“在该场景和偏好下”，不能推论所有环境都降低 T、C、F。
+%% 若某方案失败，报告失败阶段和条件，不把缺失值补成零或隐去该工况。
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/time_vs_risk_aware.pdf}
+%% \caption{Final trajectories obtained with time-oriented and risk-aware
+%% objectives under the common two-stage planning and validation protocol.}
+%% \label{fig:objective_comparison}
+%% \end{figure}
+
+\subsubsection{Coarse versus fine planning}
+\label{sec:resolution_comparison}
+
+%% 研究问题：在同一次两阶段运行中，细网格对粗路线做了哪些局部调整？
+%% 数据：同一次归档的 planned_path_coarse.pkl['path','stats'] 与
+%%       planned_path.pkl['path_raw','stats_raw']，不是后者的最终 path/stats。
+%% 步骤 1：核对权重、baseline 和环境一致；对齐原始粗/细两条路径。
+%% 步骤 2：列搜索口径 L、T_search、C_search、F_search、J_search、扩展节点、
+%%         coarse_time、fine_time；细阶段时间不等于完整两阶段总时间。
+%% 步骤 3：画三维/局部放大与高度剖面，解释网格转向和高度选择改变的位置。
+%% 步骤 4：检查细路径到粗中心线的三维距离及 600 m 限制；不可拿二维投影
+%%         距离替代真实三维距离。最终 spline 可能出 coarse corridor，另属后处理。
+%% 步骤 5：报告改善、不变或变差；原始粗边可能不属于 corridor 中的细图边，
+%%         因此没有先验“细网格目标必定更优”的保证。
+%% 图可直接复用 Section 3 的 coarse_corridor_fine 图，在此引用，避免重复图片。
+%% 不可把该对比写成“相对全域细网格节省 X%”：那需要另运行全域细网格基线。
+%% 不可用 coarse raw vs fine final 把细化、平滑、变速三种效果合并称网格收益。
+
+\subsubsection{Fine raw path versus B-spline trajectory}
+\label{sec:refinement_comparison}
+
+%% 研究问题：连续化改动多少几何，经过哪些验证，可执行性代价是什么？
+%% 数据：同一个 planned_path.pkl 中 path_raw、path、smooth_result、
+%%       curvature_smooth、speed_profile、accel_profile、stats_raw、stats。
+%% 步骤 1：画原始/最终局部转弯及高度剖面；给 L、最大/RMS 局部偏离、端点误差、
+%%         末端航向误差，说明是否满足 200 m、2 m、12 deg 等对应阈值。
+%% 步骤 2：最终曲率必须用保存的解析 curvature_smooth 或 tck 导数；原始折线
+%%         顶点曲率不连续，三点估计仅为网格诊断，不能宣布其连续最大曲率有限。
+%% 步骤 3：画最终曲率与 1/R_ref、速度与失速/局部上限、切向加减速度与 -4/+3、
+%%         爬升角与 15 deg、垂直率与 -15/+12。用带符号加速度区分加速与减速。
+%%         垂直率验收包含段内最大值，不仅看平均 dz/dt 曲线。
+%% 步骤 4：报告最小硬区净空/碰撞检测、最低高度包络余量、全部几何验收状态；
+%%         一张看起来平滑的图不能代替这些检查。有限采样不等于连续证明。
+%% 步骤 5：列候选数、可行候选数、所选 sigma、J_s 分量、是否航向修复；
+%%         21/42 是平滑预算尝试数，内部修复可能多次验算，不能当总验证调用数。
+%% 步骤 6：T_search/C_search/F_search 与 final T/C/F 分列，说明差别含几何与
+%%         速度变化；不能把原始折线称为已满足固定翼转弯约束的可飞行对照。
+%%         若要单独归因速度规划收益，需追加同一几何的明确可行速度对照。
+%% 段落顺序：折线局限 -> 局部几何修整 -> 约束和速度证据 -> 最终任务代价。
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/refinement_feasibility.pdf}
+%% \caption{Geometric refinement and speed-envelope validation for the same
+%% fine-search route. Constraint limits accompany the final trajectory profiles.}
+%% \label{fig:refinement}
+%% \end{figure}
+
+\subsection{Mission-preference sensitivity}
+\label{sec:sensitivity}
+
+%% 本节仅使用 coarse-search + refinement + speed 的 72 组协议，不能写成
+%% 72 组都执行了 corridor fine search，也不把重复权重当独立随机实验。
+%% 数据：output_5zones/sweep_2d_time_fuel_v5_3_1.xlsx 的“全部数据”工作表，
+%%       与 sweep_cases_v5_3_1 中匹配的逐工况缓存；入口 analysis_data_loader.py。
+%% 第一步【验收】：确认 12*6 唯一组合、w_C=1、schema/平滑版本/run_signature
+%% 一致且匹配当前基准和代码、所有成功标记和物理指标有效。不能把失败行删除
+%% 后仍声称完成 72 个有效工况。未完成时先报告进度，不制作正式完整热力图。
+%% 第二步【三目标响应】：运行 analyze_weight_sensitivity.py，画 T/C/F 三幅
+%% 热力图，x=w_T，y=w_F，使用相同网格顺序并标单位，保留零权重行列。
+%% (w_T,w_F)=(0,0) 是纯暴露目标，因为 w_C=1，并非“全零权重无目标”。
+%% 先报各指标实测范围和位置，再解释横向/纵向变化；不预写严格单调关系。
+%% 相同权重改变可能跨离散路线分支；阶梯、平台与跳变应联系路线/高度证据。
+%% 第三步【控制变量切片】：固定 w_F 比较递增 w_T，固定 w_T 比较递增 w_F。
+%% 选择提前说明的切片（例如边界及中间值），不要只展示有利曲线。
+%% 绝对数值优先；可给相邻格差值，跳变点回查原始路径和样条候选变化。
+%% 第四步【权衡散点】：用 analyze_core_tradeoffs_v2.py 的现有输出辅助，
+%% 画 T-C 散点以 F 着色，必要时补 C-F/T-F。检查每幅图采用物理量还是批内缩放。
+%% 如报告非支配集：对完整实测 T/C/F 做三目标逐对支配判断（三项<=且至少一项<），
+%% 去重规则/容差公开；称“本次采样集的非支配解”，不称真实全局 Pareto 前沿。
+%% 二维投影中的低边界不能直接等同于三目标非支配；算法也未证明扫全非凸前沿。
+%% 第五步【高度机制】：用 analyze_altitude_strategy_v2.py 和个别缓存复查；
+%% 最大高度只说明峰值，不等于全程巡航高度。联系上升耗能、密度、几何距离及
+%% 斜距暴露解释实际模式，不能先假定“越高必然越省油/越安全”。
+%% 第六步【代表选择】：运行 select_representative_weights.py，公开以下规则：
+%% 最小暴露排序 C,T,F,w_T,w_F；最短时间排序 T,C,F,w_T,w_F；
+%% 最少燃油排序 F,C,T,w_T,w_F；平衡解按批内 T/C/F min-max 归一化后的
+%% 欧氏理想点距离排序，再按 T,C,F,w_T,w_F 打破并列。常数列贡献为 0。
+%% 这是代表筛选用批内归一化，不是 Section 2 的 anchor 归一化。
+%% 指纹/平台邻居数仅为诊断，不参与选择；相同舍入指标不能证明路径完全相同。
+%% 如报告权重平台“稳健”，仅指本场景离散权重邻域响应，不指风/雷达误差鲁棒性。
+%% 建议正文三段：总体响应 -> 权衡/路线机制 -> 代表选择与局限。
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/weight_sensitivity.pdf}
+%% \caption{Time, exposure and fuel across the 72 preference configurations
+%% evaluated using coarse search followed by trajectory refinement and retiming.}
+%% \label{fig:sensitivity}
+%% \end{figure}
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/mission_tradeoffs.pdf}
+%% \caption{Observed mission trade-offs within the evaluated preference set.
+%% Marked cases are selected using the stated physical-objective rules.}
+%% \label{fig:tradeoffs}
+%% \end{figure}
+
+\subsection{Representative mission scenarios}
+\label{sec:representative}
+
+%% 目的：检验 coarse sweep 选出的任务偏好在完整两阶段流程中表现如何。
+%% 这是同一环境的不同任务偏好案例，不是三个独立环境；标题亦可改为
+%% Representative mission preferences，以避免读者误解。
+%% 步骤 1：读取 representative_weights.csv，优先选最小暴露/平衡/最短时间。
+%%         若燃油权衡是核心贡献，补最少燃油，或在表中列出该解并解释重合。
+%%         选择规则固定；不同规则可选同一权重，不强行造三个不同代表。
+%% 步骤 2：先保存当前 main.py 配置与现有结果，设置每个已选权重并运行完整
+%%         main.py，分别归档源码配置、两种 pkl、日志、环境和 baseline。
+%%         更改 main 权重会改变 main 结果签名；跨案例比较应使用各自归档
+%%         配置核对，不能手改缓存签名骗过当前加载器。不要改 sweep 源码。
+%% 步骤 3：每个案例核对 final success、包络/转弯/速度/加速/航向验证；失败
+%%         如实报告，不悄悄换成 sweep 结果冒充 full-pipeline final。
+%% 步骤 4：表列选择规则、(w_T,w_C,w_F)、最终 L/T/C/F、最高高度、最小半径、
+%%         最大爬升角、航向误差、计算耗时。J 仅在同一参考权重下才可横向比较。
+%% 步骤 5：叠加三维/俯视轨迹、统一横轴的高度剖面，解释绕飞或穿越软暴露区。
+%%         暴露累计曲线须使用与最终 evaluator 相同的变速积分时间；终值应为 C。
+%%         不要用旧恒速积分函数生成“累计暴露曲线”再与变速最终 C 混用。
+%% 步骤 6：若对比 coarse-screening vs full-pipeline，逐项报告 T/C/F 变化。
+%%         这同时改变 fine search 与 locality 半径（约3016 m -> 200 m），
+%%         只能解释为协议差异，不能单独归因于 finer grid。
+%% 步骤 7：说明代表性权重是在 coarse 协议中选出，未证明 full-pipeline 下
+%%         仍是全72组最小暴露/最快/最省油。可称“由最小暴露规则选出的偏好”。
+%% 段落顺序：选择与执行协议 -> 每个案例的空间/速度行为 -> 实测代价 -> 适用边界。
+%% 不同权重的效果可能在完整流程中收敛、反转或失败；以结果为准。
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/representative_missions.pdf}
+%% \caption{Complete two-stage trajectories for preferences selected from the
+%% coarse-search sensitivity experiment, shown in the common threat environment.}
+%% \label{fig:representatives}
+%% \end{figure}
+
+%% 第四章收尾：仅在完成数据后写 1 段综合讨论。分别回答偏好作用、细化作用、
+%% 可行性证据；列明计算开销及代价，而非只列优势。承认单一合成布局、简化
+%% 气动/能耗与静态威胁、有限候选和采样的适用范围。无需为写作而重跑全部72组。
+%% 若要声称跨场景泛化、真实飞行鲁棒或统计显著，必须另设计相应实验，不能
+%% 用本节同一环境的权重扫频替代。这些尚未做的工作可放未来工作。

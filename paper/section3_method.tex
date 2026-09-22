@@ -1,0 +1,378 @@
+%% Insert after the COMPLETE Section 2, not inside the fuel model.
+\section{Proposed risk-aware two-stage trajectory planning framework}
+\label{sec:method}
+
+The framework separates route selection, geometric refinement and speed
+assignment while retaining a common mission evaluator. The coarse search
+first identifies a route under the normalized time--exposure--fuel objective.
+A fine search then resolves its local geometry within a three-dimensional
+corridor. Cubic B-splines replace the resulting polyline with differentiable
+candidates, which are screened against geometric constraints and ranked
+using a dimensionless refinement score. Finally, a forward--backward pass
+assigns speeds along the selected curve, and the mission metrics are
+recomputed under the resulting motion. This decomposition limits the size
+of the search state while making the distinction between search estimates
+and final trajectory performance explicit.
+
+%% FIGURE PLACEHOLDER: overall framework; use vector PDF for the final artwork.
+%% Show mission/environment -> three raw anchors and shared scales -> coarse A*
+%% -> 3-D corridor -> fine A* -> spline candidates/repairs -> geometric checks
+%% -> minimum geometric score -> strict speed assignment -> final T, C, F, J.
+%% Show rejection exits for search, geometry and speed failures. Add a dashed
+%% coarse-to-spline branch labelled "72-case sensitivity protocol".
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/framework.pdf}
+%% \caption{Planning and evaluation workflow. Mission preferences govern graph
+%% search, whereas geometric refinement and speed assignment are subsequent
+%% stages with explicit feasibility checks.}
+%% \label{fig:framework}
+%% \end{figure}
+
+\subsection{Multi-objective risk-aware A* search}
+\label{sec:astar}
+
+The search graph represents position on an anisotropic Cartesian lattice
+with horizontal and vertical spacings $\delta_{xy}$ and $\delta_z$.
+Candidate displacements are drawn from
+\begin{equation}
+ \mathcal{D}=\{(a\delta_{xy},b\delta_{xy},c\delta_z):
+ a,b,c\in\{-1,0,1\},\ (a,b,c)\ne(0,0,0)\}.
+ \label{me:eq:neighbors}
+\end{equation}
+Purely vertical moves are excluded, and a displacement is retained only
+if its climb angle satisfies the prescribed bound. The map boundary,
+altitude envelope and hard exclusion regions further restrict the
+admissible graph. Each retained edge is checked at ten spatial locations,
+including its endpoints; the nine intervening subsegments supply the
+midpoint quadrature for exposure and fuel. A graph state contains position
+only. Heading, curvature and acceleration feasibility are consequently
+resolved after search rather than represented as additional state variables.
+
+For a partial path ending at $\mathbf p$, the accumulated search cost is
+$G(\mathbf p)=\sum_e c_e$, with $c_e$ defined in
+Eq.~\eqref{pr:eq:edgeobjective}. The A* priority is
+\begin{equation}
+ f(\mathbf p)=G(\mathbf p)+h(\mathbf p),\qquad
+ h(\mathbf p)=\frac{w_T}{\Delta_T}
+              \frac{\|\mathbf p-\mathbf p_g\|}{v_{\mathrm{cr}}}.
+ \label{me:eq:heuristic}
+\end{equation}
+No heuristic inflation is used. The heuristic retains only a lower bound
+on the time contribution: risk and fuel are nonnegative, and the search
+time of an edge is at least its length divided by $v_{\mathrm{cr}}$.
+For adjacent states $\mathbf p$ and $\mathbf q$, the triangle inequality
+therefore gives
+\begin{equation}
+ h(\mathbf p)-h(\mathbf q)
+ \le \frac{w_T\|\mathbf p-\mathbf q\|}{\Delta_Tv_{\mathrm{cr}}}
+ \le c_{(\mathbf p,\mathbf q)}.
+ \label{me:eq:consistency}
+\end{equation}
+Thus, the heuristic is consistent for the fixed graph and edge model.
+When $w_T=0$, it becomes zero and the primary search reduces to uniform-cost
+expansion. Equal primary priorities are ordered using accumulated geometric
+length plus Euclidean distance to the goal, providing a deterministic
+geometric preference in flat-cost regions. This secondary criterion does
+not add a distance penalty to the mission objective.
+
+The constant lower-reference offset in Eq.~\eqref{pr:eq:offset} is restored
+when reporting the complete path objective. It is not included repeatedly
+in edge costs. The resulting minimum-cost interpretation concerns the
+discretized search problem, subject to numerical tolerances and successful
+search termination. It does not extend to the subsequently modified and
+retimed continuous trajectory.
+%% Cite a verified primary A* reference here when finalizing the bibliography.
+
+\subsection{Coarse-to-fine three-dimensional planning}
+\label{sec:coarsefine}
+
+A uniform fine lattice over the entire workspace requires many expansions
+in regions that are irrelevant to a particular mission preference. The
+two-stage search instead uses a coarse path $\Gamma_c$ to restrict the
+domain of a second, finer search. For any polyline $\Gamma$, define
+\begin{equation}
+ d(\mathbf p,\Gamma)=
+ \min_{[\mathbf a,\mathbf b]\in\Gamma}\;
+ \min_{\tau\in[0,1]}
+ \|\mathbf p-\mathbf a-\tau(\mathbf b-\mathbf a)\|.
+ \label{me:eq:distance}
+\end{equation}
+This distance uses the closest point on a segment, rather than the closest
+waypoint, and treats horizontal and vertical displacement in the same
+three-dimensional metric. The search corridor is
+\begin{equation}
+ \mathcal C(\Gamma_c,r_c)=
+ \{\mathbf p\in\mathcal W:d(\mathbf p,\Gamma_c)\le r_c\}.
+ \label{me:eq:corridor}
+\end{equation}
+Where grid snapping changes an endpoint, the physical endpoint is connected
+to the coarse polyline when constructing the corridor reference. The
+endpoints used in the present experiments lie on both lattices.
+
+The fine graph retains nodes inside this corridor and samples candidate
+edges to prevent a connection between admissible endpoints from leaving
+the corridor unchecked. For the reported settings, corridor probes are
+spaced no more than approximately $100~\mathrm{m}$ along an edge, with at
+least three probes. Altitude and obstacle screening remain active. Both
+search stages use the same objective weights and the same anchor-derived
+normalization scales; the fine stage does not recompute its own anchors.
+
+The fine result $\Gamma_f$ is obtained by a new graph search, not by
+interpolating $\Gamma_c$. Its finer directional and altitude resolution
+permits local route changes, but the corridor limits which alternatives
+can be explored. The construction therefore trades search coverage for
+computational tractability; it does not guarantee equivalence to an
+unrestricted fine-grid search. A failed fine search is reported as a
+failure rather than relabeling the coarse path as a fine result.
+
+%% FIGURE PLACEHOLDER: coarse/corridor/fine geometry, preferably two panels.
+%% Use the SAME actual case: (a) plan view with coarse and fine paths and
+%% corridor; (b) 3-D detail or altitude profile showing vertical refinement.
+%% Do not draw the 3-D corridor merely as a fixed-width horizontal strip.
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/coarse_corridor_fine.pdf}
+%% \caption{Coarse-to-fine route refinement within a three-dimensional
+%% distance corridor. The corridor restricts the fine search domain.}
+%% \label{fig:coarsefine}
+%% \end{figure}
+
+\subsection{Cubic B-spline trajectory refinement}
+\label{sec:bspline}
+
+The fine polyline satisfies the edge-level search constraints but retains
+direction discontinuities at its vertices. Let
+$\{\mathbf P_i\}_{i=0}^{n-1}$ denote its ordered vertices after removal of
+consecutive duplicates. A cubic parametric B-spline is fitted as
+\begin{equation}
+ \mathbf q_\sigma(u)=\sum_{j=0}^{K_\sigma-1}
+ B_{j,3}(u)\mathbf c_j,\qquad u\in[0,1],
+ \label{me:eq:spline}
+\end{equation}
+where $B_{j,3}$ are cubic basis functions, $\mathbf c_j$ are control points,
+and $\sigma$ controls the fit. Chord-length parameterization assigns
+$u_i=\sum_{k=0}^{i-1}\|\mathbf P_{k+1}-\mathbf P_k\|/L_{\mathrm{raw}}$,
+where $L_{\mathrm{raw}}$ is the polyline length. The initial FITPACK
+smoothing fit uses the weighted residual condition
+\begin{equation}
+ \sum_{i=0}^{n-1}\omega_i^2
+       \|\mathbf P_i-\mathbf q_\sigma(u_i)\|^2\le\sigma,
+ \qquad
+ \omega_i=
+ \begin{cases}
+ 10^5,&i\in\{0,n-1\},\\
+ 1,&\text{otherwise}.
+ \end{cases}
+ \label{me:eq:fit}
+\end{equation}
+Large endpoint weights promote endpoint retention, which is subsequently
+verified with an explicit tolerance. The smoothing condition controls the
+initial fit; it is not the final mission objective and is not assumed to
+remain an exact residual bound after geometric repair.
+
+To explore the balance between polyline fidelity and curvature reduction,
+the smoothing budgets are scaled to the input resolution:
+\begin{equation}
+ \sigma_j=n(\delta_{xy}\beta_j)^2.
+ \label{me:eq:budgets}
+\end{equation}
+The fixed set of 21 dimensionless factors is
+\begin{equation}
+ \begin{split}
+ \mathcal B=\{&0.02,0.03,0.04,0.05,0.0625,0.075,0.09,\\
+              &0.105,0.125,0.15,0.18,0.22,0.25,0.35,\\
+              &0.50,0.75,1.0,1.5,2.0,3.0,4.0\}.
+ \end{split}
+ \label{me:eq:budgetset}
+\end{equation}
+Every budget is examined before selecting a candidate. Small budgets
+retain the lattice geometry more closely; larger budgets allow greater
+deformation but must still satisfy the local-deviation and flight-envelope
+tests. The input is $\Gamma_f$ for the complete two-stage method and
+$\Gamma_c$ for the separate coarse-search sensitivity protocol.
+
+Geometric repair addresses constraint violations introduced by smoothing.
+Altitude repair raises deficient sampled altitudes relative to the spatial
+altitude floor and refits the corrected points. Climb repair limits the
+vertical slope using margins below $\tan\gamma_{\max}$ while retaining
+the sampled horizontal coordinates before refitting. These operations
+generate revised candidates, each of
+which is rechecked against the full geometric test set. Repair is a
+feasibility procedure and need not reduce the mission objective.
+
+The terminal heading is inferred from the incoming raw route over a
+lookback length of $\max(5\delta_{xy},1000~\mathrm{m})$, using the horizontal
+chord from the selected upstream vertex to the goal. If the initial
+candidate pass finds no geometrically feasible curve and includes a
+heading violation, a second pass aligns the final control-polygon edge
+with this reference and reevaluates all smoothing budgets. The adjustment
+retains the endpoint coordinates and control-point altitudes. The method
+thus preserves the approach direction implied by the route; it does not
+enforce an independently specified terminal mission heading.
+
+For regular curves with simple interior knots, cubic B-splines provide
+$C^2$ geometric continuity and permit curvature evaluation from analytic
+derivatives. This property removes polyline corners, but does not by itself
+establish feasibility or imply continuous jerk in the time-parameterized
+motion. Those issues require the subsequent geometric and speed checks.
+%% Cite the verified FITPACK/Dierckx reference used by the installed SciPy
+%% implementation when finalizing the bibliography.
+
+\subsection{Geometric feasibility validation and candidate selection}
+\label{sec:trajectory_validation}
+
+Candidate curves are evaluated at $M=4096$ uniformly spaced parameter
+values. Their analytic derivatives give spatial curvature through
+Eq.~\eqref{pr:eq:curvature} and the local flight-path angle
+\begin{equation}
+ \gamma(u)=\arctan\!left(
+ \frac{|q'_z(u)|}{\sqrt{q'_x(u)^2+q'_y(u)^2}}\right).
+ \label{me:eq:splineangle}
+\end{equation}
+Finite coordinates and nonzero tangents are required. The geometric
+turning-radius threshold is
+\begin{equation}
+ R_{\mathrm{ref}}=
+ \max\left\{R_{\mathrm{floor}},
+       \frac{v_{\mathrm{stall}}^2}{g\tan\phi_{\max}}\right\}.
+ \label{me:eq:radius}
+\end{equation}
+Requiring $\kappa\le1/R_{\mathrm{ref}}$ prevents acceptance of a turn
+that already exceeds the bank envelope at stall speed. It does not require
+the curve to support cruise speed everywhere, because speed can subsequently
+decrease in curved sections.
+
+A candidate must also satisfy the altitude envelope, avoid the hard
+exclusion regions, retain both endpoints within $2~\mathrm{m}$, and match
+the terminal horizontal heading within $12^\circ$. Its maximum distance
+from the input polyline must satisfy
+\begin{equation}
+ d(\mathbf q_\sigma(u),\Gamma_{\mathrm{raw}})\le r_s
+ \label{me:eq:locality}
+\end{equation}
+at the validation samples. Here $r_s$ is a refinement locality limit,
+distinct from the coarse-search corridor radius $r_c$. In the default
+configuration, membership of the final spline in the coarse corridor is
+recorded diagnostically, whereas locality relative to the raw input curve
+is enforced. Obstacles and the altitude envelope remain hard requirements.
+
+Among the geometrically admissible candidates, selection balances bending,
+curvature variation, deviation and length. Let $s$ denote arc length,
+$L_\sigma$ the candidate length, and $\kappa_s=\mathrm d\kappa/\mathrm ds$.
+The dimensionless components are
+\begin{align}
+ Q_b&=\frac{1}{L_\sigma}
+       \int_0^{L_\sigma}(R_{\mathrm{ref}}\kappa)^2\,\mathrm ds,
+       \label{me:eq:bending}\\
+ Q_v&=R_{\mathrm{ref}}^3
+       \int_0^{L_\sigma}\kappa_s^2\,\mathrm ds,
+       \label{me:eq:variation}\\
+ Q_d&=\frac{1}{r_s}
+       \sqrt{\frac{1}{M}\sum_{m=0}^{M-1}
+       d(\mathbf q_\sigma(u_m),\Gamma_{\mathrm{raw}})^2},
+       \qquad u_m=\frac{m}{M-1},
+       \label{me:eq:deviation}\\
+ Q_l&=\frac{L_\sigma}{L_{\mathrm{raw}}}.
+       \label{me:eq:length}
+\end{align}
+The integrals use the cumulative chord-length coordinate of the dense
+samples and trapezoidal quadrature; $\kappa_s$ is estimated numerically
+on that coordinate. In contrast, $Q_d$ is the root-mean-square deviation
+over uniform parameter samples, not an arc-length-weighted integral.
+The curvature-variation term penalizes spatial changes in curvature;
+it is not a roll-rate constraint.
+
+The refinement score and selection rule are
+\begin{equation}
+ J_s=0.4Q_b+0.3Q_v+0.2Q_d+0.1Q_l,\qquad
+ \mathbf q^*=\mathop{\arg\min}_{\mathbf q\in\mathcal Q_{\mathrm{geom}}}
+ J_s(\mathbf q),
+ \label{me:eq:selection}
+\end{equation}
+where $\mathcal Q_{\mathrm{geom}}$ contains the admitted candidates from
+the applicable fitting and repair pass. The four coefficients are fixed
+geometric design settings, independent of $(w_T,w_C,w_F)$. Selection
+enumerates the candidate set rather than stopping at the first feasible
+smoothing budget. It is a finite candidate comparison, not a global
+optimization over all spline control points.
+
+If no geometrically admissible candidate exists, refinement fails. A
+diagnostic fallback curve is not accepted as a mission trajectory. The
+selected curve must next pass strict speed validation; the present
+procedure does not rerank alternative candidates following a speed-stage
+failure. Final acceptance therefore requires both stages to succeed.
+Because geometric tests use finite sampling, acceptance has the numerical
+meaning stated in Section~\ref{pr:sec:constraints}.
+
+\subsection{Adaptive speed planning and final mission evaluation}
+\label{sec:speed}
+
+The selected spline is resampled at approximately uniform arc-length
+spacing. A dense set of 8000 parameter probes supplies the cumulative
+length map, which is inverted to obtain the final samples
+$\{\mathbf q_i\}_{i=0}^{N}$. Their chord lengths are
+$\ell_i=\|\mathbf q_{i+1}-\mathbf q_i\|$, and $\kappa_i$ is evaluated
+from the spline derivatives at the corresponding parameters. The target
+spacing is $100~\mathrm{m}$ in both experimental protocols.
+
+The vertical-rate ceiling of a nondegenerate segment is
+\begin{equation}
+ \bar v_{z,i}=\begin{cases}
+ v_{\mathrm{asc},\max}\ell_i/|z_{i+1}-z_i|,&z_{i+1}>z_i,\\
+ v_{\mathrm{des},\max}\ell_i/|z_{i+1}-z_i|,&z_{i+1}<z_i,\\
+ +\infty,&z_{i+1}=z_i.
+ \end{cases}
+ \label{me:eq:verticalcap}
+\end{equation}
+This ceiling is assigned to both endpoints of the segment. At node $i$,
+the admissible speed ceiling is
+\begin{equation}
+ \bar v_i=\min\left\{
+ v_{\mathrm{cr}},v_{\max},
+ \sqrt{\frac{g\tan\phi_{\max}}{\kappa_i}},
+ \min_{e\in\mathcal E_i}\bar v_{z,e}\right\},
+ \label{me:eq:nodecap}
+\end{equation}
+where $\mathcal E_i$ comprises adjacent segments and the curvature term is
+infinite on a straight segment. A ceiling below $v_{\mathrm{stall}}$
+causes rejection, rather than a speed assignment below stall.
+
+With $v_0^+=v_{\mathrm{stall}}$, the forward pass propagates the acceleration
+bound:
+\begin{equation}
+ v_{i+1}^+=\min\left\{\bar v_{i+1},
+       \sqrt{(v_i^+)^2+2a_{\mathrm{acc},\max}\ell_i}\right\},
+ \qquad i=0,\ldots,N-1.
+ \label{me:eq:forward}
+\end{equation}
+The backward pass anticipates downstream speed reductions:
+\begin{equation}
+ v_N=v_N^+,\qquad
+ v_i=\min\left\{v_i^+,
+       \sqrt{v_{i+1}^2+2a_{\mathrm{dec},\max}\ell_i}\right\},
+ \qquad i=N-1,\ldots,0.
+ \label{me:eq:backward}
+\end{equation}
+No terminal-speed equality is introduced. Applying a segment's vertical
+ceiling at both ends bounds its largest vertical speed under the adopted
+constant-tangential-acceleration segment model. The final validation checks
+speed, turning, climb angle, vertical rate and tangential acceleration;
+failure prevents the trajectory from being reported as feasible.
+
+The accepted speed sequence supplies segment times through
+Eq.~\eqref{pr:eq:segmenttime}. Time, exposure and fuel are then evaluated
+with the common subsegment quadrature in Eq.~\eqref{pr:eq:quadrature},
+including renewed altitude and collision screening, and normalized using
+the unchanged anchor scales. This last evaluation is essential because
+spline deformation changes the spatial threat field sampled by the
+vehicle, while retiming changes both residence time and fuel expenditure.
+Consequently, a lower geometric refinement score does not by itself imply
+a lower final mission objective. The reported output is the accepted
+geometry, its assigned speed profile and the recomputed $(T,C,F,J)$;
+search-stage estimates are retained separately for diagnosis and ablation.
+
+%% FIGURE PLACEHOLDER: use measured outputs in Section 4.2, not synthetic data.
+%% Suggested panels: local raw/spline geometry; analytic spline curvature
+%% with 1/R_ref; speed with stall/local ceilings; climb and vertical-rate
+%% profiles with limits. Raw-polyline corner curvature is diagnostic only.

@@ -1,0 +1,1288 @@
+%%
+%% Copyright 2007-2024 Elsevier Ltd
+%%
+%% This file is part of the 'Elsarticle Bundle'.
+%% ---------------------------------------------
+%%
+%% It may be distributed under the conditions of the LaTeX Project Public
+%% License, either version 1.3 of this license or (at your option) any
+%% later version.  The latest version of this license is in
+%%    http://www.latex-project.org/lppl.txt
+%% and version 1.3 or later is part of all distributions of LaTeX
+%% version 1999/12/01 or later.
+%%
+%% The list of all files belonging to the 'Elsarticle Bundle' is
+%% given in the file `manifest.txt'.
+%%
+%% Template article for Elsevier's document class `elsarticle'
+%% with numbered style bibliographic references
+%% SP 2008/03/01
+%% $Id: elsarticle-template-num.tex 249 2024-04-06 10:51:24Z rishi $
+%%
+\documentclass[preprint,12pt]{elsarticle}
+
+%% Use the option review to obtain double line spacing
+%% \documentclass[authoryear,preprint,review,12pt]{elsarticle}
+
+%% Use the options 1p,twocolumn; 3p; 3p,twocolumn; 5p; or 5p,twocolumn
+%% for a journal layout:
+%% \documentclass[final,1p,times]{elsarticle}
+%% \documentclass[final,1p,times,twocolumn]{elsarticle}
+%% \documentclass[final,3p,times]{elsarticle}
+%% \documentclass[final,3p,times,twocolumn]{elsarticle}
+%% \documentclass[final,5p,times]{elsarticle}
+%% \documentclass[final,5p,times,twocolumn]{elsarticle}
+
+%% For including figures, graphicx.sty has been loaded in
+%% elsarticle.cls. If you prefer to use the old commands
+%% please give \usepackage{epsfig}
+
+%% The amssymb package provides various useful mathematical symbols
+\usepackage{amssymb}
+%% The amsmath package provides various useful equation environments.
+\usepackage{amsmath}
+%% The amsthm package provides extended theorem environments
+%% \usepackage{amsthm}
+
+%% The lineno packages adds line numbers. Start line numbering with
+%% \begin{linenumbers}, end it with \end{linenumbers}. Or switch it on
+%% for the whole article with \linenumbers.
+%% \usepackage{lineno}
+
+\journal{Aerospace Science and Technology}
+
+\begin{document}
+
+\begin{frontmatter}
+
+%% Title, authors and addresses
+
+%% use the tnoteref command within \title for footnotes;
+%% use the tnotetext command for theassociated footnote;
+%% use the fnref command within \author or \affiliation for footnotes;
+%% use the fntext command for theassociated footnote;
+%% use the corref command within \author for corresponding author footnotes;
+%% use the cortext command for theassociated footnote;
+%% use the ead command for the email address,
+%% and the form \ead[url] for the home page:
+%% \title{Title\tnoteref{label1}}
+%% \tnotetext[label1]{}
+%% \author{Name\corref{cor1}\fnref{label2}}
+%% \ead{email address}
+%% \ead[url]{home page}
+%% \fntext[label2]{}
+%% \cortext[cor1]{}
+%% \affiliation{organization={},
+%%             addressline={},
+%%             city={},
+%%             postcode={},
+%%             state={},
+%%             country={}}
+%% \fntext[label3]{}
+
+\title{Dynamically feasible risk-aware trajectory planning for fixed-wing UAVs via multi-objective two-stage search}
+
+%% use optional labels to link authors explicitly to addresses:
+%% \author[label1,label2]{}
+%% \affiliation[label1]{organization={},
+%%             addressline={},
+%%             city={},
+%%             postcode={},
+%%             state={},
+%%             country={}}
+%%
+%% \affiliation[label2]{organization={},
+%%             addressline={},
+%%             city={},
+%%             postcode={},
+%%             state={},
+%%             country={}}
+
+\author{Zhiwen Lin}
+\affiliation{organization={},%Department and Organization
+            addressline={},
+            city={Changsha},
+            postcode={410073},
+            state={Hunan},
+            country={China}
+            }
+
+%% Abstract
+\begin{abstract}
+
+Abstract text.
+\end{abstract}
+
+
+\begin{graphicalabstract}
+\end{graphicalabstract}
+
+\begin{highlights}
+\item Research highlight 1
+\item Research highlight 2
+\end{highlights}
+
+%% Keywords
+\begin{keyword}
+Fixed-wing UAV \sep
+trajectory planning \sep
+risk-aware planning \sep
+multi-objective optimization \sep
+A* search \sep
+B-spline
+
+\end{keyword}
+
+\end{frontmatter}
+\section{Introduction}
+\label{sec:introduction}
+
+
+% Replace the existing Section 2, including its heading, with this file.
+% Requires amsmath and amssymb. All pr: labels are local to this replacement.
+\section{Problem formulation}
+\label{pr:sec:problem}
+
+\subsection{Three-dimensional mission and threat environment}
+\label{pr:sec:environment}
+The mission is defined in a three-dimensional Cartesian workspace
+$\mathcal{W}\subset\mathbb{R}^{3}$. The UAV position is
+$\mathbf{p}=[x,y,z]^{\mathsf T}$, where $x$ and $y$ are horizontal
+coordinates and $z$ is altitude. The prescribed mission endpoints are
+$\mathbf{p}_{s}$ and $\mathbf{p}_{g}$. A discrete search path is written as
+\begin{equation}
+ \Gamma_d=(\mathbf{p}_0,\ldots,\mathbf{p}_N),\qquad
+ \mathbf{p}_0=\mathbf{p}_{s},\quad \mathbf{p}_N=\mathbf{p}_{g},
+ \label{pr:eq:discrete}
+\end{equation}
+whereas the final time-parameterized trajectory is
+$\mathbf{r}(t)\in\mathcal{W}$, $t\in[0,T]$. These representations are
+distinguished because collision-free graph connectivity does not establish
+continuous-trajectory feasibility. The search, geometric refinement and
+speed-assignment procedures are described in Section~3.
+
+Hard exclusion regions and traversable soft-threat regions are modeled
+separately. Each hard zone is a vertical cylinder,
+\begin{equation}
+ \Omega_{F,j}=\left\{\mathbf{p}\in\mathcal{W}:
+ (x-x_{F,j})^2+(y-y_{F,j})^2\le R_{F,j}^{2},\quad
+ 0\le z\le H_{F,j}\right\},
+ \label{pr:eq:hardzone}
+\end{equation}
+where $R_{F,j}$ and $H_{F,j}$ are its horizontal radius and height. With
+$\Omega_{\mathrm{hard}}=\bigcup_{j=1}^{N_F}\Omega_{F,j}$, the continuous
+collision-avoidance requirement is
+\begin{equation}
+ \mathbf{r}(t)\notin\Omega_{\mathrm{hard}},\qquad t\in[0,T].
+ \label{pr:eq:collision}
+\end{equation}
+
+For radar $i$ at $(x_{R,i},y_{R,i},0)$, define the slant range
+\begin{equation}
+ d_i(\mathbf{p})=\sqrt{(x-x_{R,i})^2+(y-y_{R,i})^2+z^2}.
+ \label{pr:eq:slant}
+\end{equation}
+Its coverage is hemispherical within the nonnegative-altitude workspace.
+Let $R_i$ be its outer radius and $R_{\mathrm{in},i}=\eta R_i$, with
+$0<\eta<1$. For the unit radar scaling factors used in the experiments,
+the local exposure field is
+\begin{equation}
+ P_{d,i}(\mathbf{p})=
+ \begin{cases}
+  1, & d_i(\mathbf{p})\le R_{\mathrm{in},i},\\
+  \left(\dfrac{R_i-d_i(\mathbf{p})}{R_i-R_{\mathrm{in},i}}\right)^{\nu},
+       & R_{\mathrm{in},i}<d_i(\mathbf{p})<R_i,\\
+  0, & d_i(\mathbf{p})\ge R_i,
+ \end{cases}
+ \label{pr:eq:exposurefield}
+\end{equation}
+where $\nu>0$ controls the decay rate. The experiments use $\eta=0.3$
+and $\nu=4$. Overlapping fields are combined by
+\begin{equation}
+ P_d(\mathbf{p})=\max_{1\le i\le N_R}P_{d,i}(\mathbf{p}),
+ \qquad 0\le P_d(\mathbf{p})\le1.
+ \label{pr:eq:maxfield}
+\end{equation}
+This is a prescribed dominant-exposure surrogate, rather than a statistical
+fusion formula for the probability of detection by at least one radar.
+It does not model radar scan timing, track accumulation or measurement
+dependence. Hard zones determine admissibility, while the soft field
+contributes to the accumulated exposure objective in
+Section~\ref{pr:sec:metrics}.
+
+\subsection{Fixed-wing flight constraints}
+\label{pr:sec:constraints}
+The model assumes still air and constant aircraft mass. Hence the scalar
+path speed $v(t)=\|\dot{\mathbf{r}}(t)\|$ is identified with airspeed.
+Feasibility refers to the specified geometric and reduced flight-envelope
+constraints; it does not imply validation of a six-degree-of-freedom
+aircraft model or a closed-loop tracking controller.
+
+\subsubsection{Mission altitude envelope}
+Let $d_s(\mathbf{p})$ and $d_g(\mathbf{p})$ denote the horizontal distances
+to the start and goal. For transition distance $D_{\mathrm{tr}}$, define
+\begin{equation}
+ \alpha_e(\mathbf{p})=\operatorname{clip}
+ \left(\frac{d_e(\mathbf{p})}{D_{\mathrm{tr}}},0,1\right),
+ \qquad e\in\{s,g\},
+ \label{pr:eq:transition}
+\end{equation}
+and $h_e(\mathbf{p})=z_e+(h_{\mathrm{en}}-z_e)\alpha_e(\mathbf{p})$.
+Here $h_{\mathrm{en}}$ is the minimum en-route altitude. The local envelope is
+\begin{equation}
+ h_{\min}(\mathbf{p})=\min\{h_s(\mathbf{p}),h_g(\mathbf{p}),h_{\mathrm{en}}\},
+ \qquad h_{\min}(\mathbf{r}(t))\le z(t)\le h_{\max}.
+ \label{pr:eq:altitude}
+\end{equation}
+This construction retains the endpoint altitudes while imposing the
+en-route lower bound outside both transition regions. A sufficient
+compatibility condition for the ramp slope is
+\begin{equation}
+ D_{\mathrm{tr}}\ge
+ \max_{e\in\{s,g\}}\frac{\max(h_{\mathrm{en}}-z_e,0)}{\tan\gamma_{\max}}.
+ \label{pr:eq:ramp}
+\end{equation}
+This condition concerns the altitude envelope itself; it does not guarantee
+that a feasible route exists in the presence of obstacles. In the present
+mission, $z_s=z_g=0$ is an altitude reference for airborne trajectory
+segments. Ground roll, take-off dynamics and landing dynamics are not modeled.
+
+\subsubsection{Airspeed constraint}
+The aircraft must remain above its stall-speed lower bound. The speed
+assignment uses a prescribed cruise ceiling $v_{\mathrm{cr}}$, additionally
+bounded by the aircraft maximum speed $v_{\max}$:
+\begin{equation}
+ v_{\mathrm{stall}}\le v(t)\le v_{\mathrm{cap}},\qquad
+ v_{\mathrm{cap}}=\min\{v_{\mathrm{cr}},v_{\max}\}.
+ \label{pr:eq:speedcap}
+\end{equation}
+For the reported configuration, $v_{\mathrm{stall}}=33~\mathrm{m\,s^{-1}}$,
+$v_{\mathrm{cr}}=55~\mathrm{m\,s^{-1}}$ and
+$v_{\max}=83~\mathrm{m\,s^{-1}}$. The airborne initial condition is
+$v(0)=v_{\mathrm{stall}}$. No terminal-speed equality is prescribed;
+$v(T)$ follows from the local ceilings and the forward--backward speed
+assignment. The current speed assignment seeks the available speed under
+these ceilings and does not solve a separate fuel-optimal speed-control problem.
+
+\subsubsection{Turning constraint}
+For a coordinated level turn, the bank-limited radius satisfies
+\begin{equation}
+ R_{\min}(v)=\frac{v^2}{g\tan\phi_{\max}}.
+ \label{pr:eq:turnradius}
+\end{equation}
+The implementation applies this relationship as a curvature-based envelope
+test on the three-dimensional path. For a regular spline
+$\mathbf{q}(u)$, its spatial curvature is
+\begin{equation}
+ \kappa(u)=\frac{\|\mathbf{q}'(u)\times\mathbf{q}''(u)\|}
+                    {\|\mathbf{q}'(u)\|^3},\qquad
+ v_{\mathrm{turn}}(u)=\sqrt{\frac{g\tan\phi_{\max}}{\kappa(u)}}.
+ \label{pr:eq:curvature}
+\end{equation}
+The turning ceiling is interpreted as infinite where $\kappa=0$.
+The assigned speed must not exceed both $v_{\mathrm{cap}}$ and
+$v_{\mathrm{turn}}$. If $v_{\mathrm{turn}}<v_{\mathrm{stall}}$, the geometry
+is rejected; the speed is not reduced below stall to make it acceptable.
+Using spatial curvature in this level-turn relationship is a reduced-model
+approximation for gently climbing trajectories, not an exact bank-angle
+reconstruction for general three-dimensional flight. A constant stall
+threshold is used; bank-dependent stall speed and full load-factor dynamics
+are outside the present model.
+
+\subsubsection{Climb and vertical-rate constraints}
+With horizontal arc length $s_h$, the flight-path angle and vertical rate obey
+\begin{equation}
+ \gamma=\arctan\left(\frac{\mathrm{d}z}{\mathrm{d}s_h}\right),\qquad
+ |\gamma|\le\gamma_{\max},\qquad
+ -v_{\mathrm{des},\max}\le\dot z\le v_{\mathrm{asc},\max}.
+ \label{pr:eq:vertical}
+\end{equation}
+The angle bound restricts geometry, while $\dot z=v\sin\gamma$ couples
+that geometry to speed. Both are required. The current limits are
+$\gamma_{\max}=15^\circ$, $v_{\mathrm{asc},\max}=12~\mathrm{m\,s^{-1}}$
+and $v_{\mathrm{des},\max}=15~\mathrm{m\,s^{-1}}$.
+
+\subsubsection{Longitudinal acceleration and numerical feasibility}
+The tangential acceleration is bounded by
+\begin{equation}
+ -a_{\mathrm{dec},\max}\le\dot v(t)\le a_{\mathrm{acc},\max},
+ \label{pr:eq:acceleration}
+\end{equation}
+with $a_{\mathrm{acc},\max}=3~\mathrm{m\,s^{-2}}$ and
+$a_{\mathrm{dec},\max}=4~\mathrm{m\,s^{-2}}$ in the experiments.
+These bounds are imposed during speed assignment rather than added to the cost.
+
+Search edges are screened for environmental and geometric feasibility.
+After spline construction, endpoint retention, terminal horizontal heading,
+local deviation, altitude, obstacle clearance and curvature are checked
+again, followed by speed-envelope validation. The terminal reference heading
+is inferred from the incoming discrete path, rather than supplied as an
+independent mission heading. The fine-search corridor restricts graph search;
+final spline locality is checked against the input path, and membership in
+the coarse corridor is diagnostic by default.
+
+The continuous constraints above specify the intended model. Their
+implementation uses finite-resolution sampling and numerical tolerances:
+the spline geometry is probed at 4096 parameter values, endpoints are accepted
+within $2~\mathrm{m}$, and the terminal-heading tolerance is $12^\circ$.
+Therefore, acceptance denotes satisfaction of these numerical tests, not
+a formal continuous-domain safety certificate. Numerical settings and
+resolution checks must accompany the reported experiments.
+
+\subsection{Time, threat-exposure, and fuel models}
+\label{pr:sec:metrics}
+The mission metrics are flight time $T$, accumulated exposure $C$, and
+fuel consumption $F$. They are evaluated on a common trajectory and with
+the same time increments. Let $s\in[0,L]$ denote three-dimensional arc
+length along the final curve and let $v(s)>0$ be its assigned path speed.
+The associated time law is $\mathrm{d}t=\mathrm{d}s/v(s)$.
+
+\subsubsection{Flight time}
+The continuous flight-time functional is
+\begin{equation}
+ T=\int_0^L\frac{1}{v(s)}\,\mathrm{d}s.
+ \label{pr:eq:time}
+\end{equation}
+For final trajectory samples $\mathbf{q}_i$ with speeds $v_i$, the numerical
+evaluator uses the chord length
+$\ell_i=\|\mathbf{q}_{i+1}-\mathbf{q}_i\|$ and constant tangential
+acceleration on each sampled segment. Consequently,
+\begin{equation}
+ \Delta t_i=\frac{2\ell_i}{v_i+v_{i+1}},\qquad
+ a_i=\frac{v_{i+1}^2-v_i^2}{2\ell_i},\qquad
+ T_{\mathrm{num}}=\sum_i\Delta t_i,
+ \label{pr:eq:segmenttime}
+\end{equation}
+for nonzero-length segments. This is exact for the adopted segment motion
+model, while the sampled representation approximates the continuous spline.
+It avoids replacing the final trajectory speed by one mission-wide constant.
+
+During graph search, the speed profile is not yet available. A straight
+edge $e$ of length $\ell_e$ and altitude change $\Delta z_e$ instead uses
+\begin{equation}
+ \Delta t_e^{\mathrm{search}}=
+ \max\left\{\frac{\ell_e}{v_{\mathrm{cr}}},
+             \frac{|\Delta z_e|}{v_{z,\max}(e)}\right\},
+ \label{pr:eq:searchtime}
+\end{equation}
+where $v_{z,\max}(e)$ is the ascent or descent limit according to the sign
+of $\Delta z_e$; the second term is zero for level flight. Here
+$v_{\mathrm{cr}}$ lies within the aircraft speed interval. This edge model
+is a search surrogate and does not account for acceleration across graph
+vertices. The final metrics are recomputed after geometric refinement and
+speed assignment; they need not equal the search-stage estimates.
+
+\subsubsection{Accumulated threat exposure}
+The exposure objective is
+\begin{equation}
+ C=\int_0^T P_d(\mathbf{r}(t))\,\mathrm{d}t
+   =\int_0^L\frac{P_d(\mathbf{q}(s))}{v(s)}\,\mathrm{d}s.
+ \label{pr:eq:exposure}
+\end{equation}
+Because $P_d$ is dimensionless and bounded by unity, $C$ has units of
+seconds and satisfies $0\le C\le T$. It measures time-weighted exposure,
+not mission detection probability, interception probability or expected
+loss. The same geometric passage can incur different exposure when the
+time spent within the field changes. Thus a length integral of $P_d$ alone
+would not represent the objective evaluated here.
+
+\subsubsection{Fuel consumption}
+Let $v_h=\sqrt{\dot x^2+\dot y^2}$ and $v_z=\dot z$ be the horizontal and
+vertical velocity components. The implemented fuel model uses a
+quasi-steady parabolic-drag power surrogate. Air density is approximated by
+\begin{equation}
+ \rho(z)=\rho_0\exp(-z/H_\rho),\qquad
+ \rho_0=1.225~\mathrm{kg\,m^{-3}},\quad H_\rho=8500~\mathrm{m}.
+ \label{pr:eq:density}
+\end{equation}
+This is an exponential atmosphere approximation. It is not the full
+piecewise International Standard Atmosphere model. The level-flight
+mechanical power surrogate is
+\begin{equation}
+ P_{\mathrm{lev}}(v_h,z)=
+ \frac{1}{2}\rho(z)C_{D0}S v_h^3+
+ \frac{2(mg)^2}{\rho(z)v_h S\pi\,\mathrm{AR}\,e_O},
+ \label{pr:eq:levelpower}
+\end{equation}
+where $S$ is wing area, $C_{D0}$ is the zero-lift drag coefficient,
+$\mathrm{AR}$ is aspect ratio, and $e_O$ is the Oswald efficiency factor.
+The first and second terms represent parasitic and induced power,
+respectively. The model uses horizontal speed in these terms; it does not
+substitute path speed $v$ for $v_h$ in climbing segments.
+
+For the current configuration, descent energy recovery is zero. With
+climb efficiency $\eta_c$ and fuel-to-propulsive efficiency $\eta_p$,
+the fuel-equivalent power is
+\begin{equation}
+ P_f(v_h,v_z,z)=\frac{P_{\mathrm{lev}}(v_h,z)+P_c(v_z)}{\eta_p},
+ \qquad
+ P_c(v_z)=
+ \begin{cases}
+  mgv_z/\eta_c, & v_z>\delta_z,\\
+  0, & v_z\le\delta_z,
+ \end{cases}
+ \label{pr:eq:fuelpower}
+\end{equation}
+where $\delta_z=0.01~\mathrm{m\,s^{-1}}$ is the small vertical-rate
+deadband used in evaluation. The routine numerically floors $v_h$ at
+$v_{\mathrm{stall}}/2$; this floor is inactive for trajectories satisfying
+the stated stall and flight-path-angle bounds. With $H_f$ denoting the fuel
+lower heating value,
+\begin{equation}
+ F=\frac{1}{H_f}\int_0^T
+ P_f(v_h(t),v_z(t),z(t))\,\mathrm{d}t,
+ \qquad H_f=43\times10^6~\mathrm{J\,kg^{-1}}.
+ \label{pr:eq:fuel}
+\end{equation}
+Thus $F$ is reported in kilograms. Since $P_f$ already includes division
+by $\eta_p$, the efficiency must not be applied a second time when
+converting energy to fuel mass.
+
+For numerical integration, each sampled segment is subdivided at spatial
+fractions $0=\lambda_0<\cdots<\lambda_K=1$. Constant tangential acceleration
+gives
+\begin{equation}
+ v_{ij}=\sqrt{(1-\lambda_j)v_i^2+\lambda_j v_{i+1}^2},\qquad
+ \Delta t_{ij}=\frac{2\ell_i(\lambda_{j+1}-\lambda_j)}{v_{ij}+v_{i,j+1}}.
+ \label{pr:eq:subtime}
+\end{equation}
+At subsegment midpoint $\mathbf{q}_{ij}^{m}$, the horizontal and vertical
+velocities are calculated from the corresponding displacement divided by
+$\Delta t_{ij}$. The three numerical metrics are
+\begin{equation}
+ \begin{aligned}
+ T_{\mathrm{num}}&=\sum_{i,j}\Delta t_{ij},\\
+ C_{\mathrm{num}}&=\sum_{i,j}P_d(\mathbf{q}_{ij}^{m})\Delta t_{ij},\\
+ F_{\mathrm{num}}&=\frac{1}{H_f}\sum_{i,j}
+ P_f(v_{h,ij},v_{z,ij},z_{ij}^{m})\Delta t_{ij}.
+ \end{aligned}
+ \label{pr:eq:quadrature}
+\end{equation}
+Spatial midpoint evaluation of the nonlinear field and power terms is a
+quadrature approximation. Search edges use the same field and power
+functions, with their edge time distributed uniformly over the subsegments.
+
+This fuel model is intended for internally consistent comparisons. It
+neglects fuel-induced mass change, bank-dependent induced-drag corrections,
+transient engine behavior and an explicit tangential-acceleration power
+term. These assumptions limit claims about absolute fuel prediction.
+
+\subsection{Anchor-based normalized mission-oriented objective}
+\label{pr:sec:objective}
+Time, exposure and fuel have different units and numerical scales. A fixed
+reference is therefore constructed from three single-objective searches
+on the same coarse graph, with identical mission endpoints, environment,
+constraints and search-stage evaluation rules. Denote the resulting paths
+by $\Gamma_T$, $\Gamma_C$ and $\Gamma_F$, corresponding to the weight
+vectors $(1,0,0)$, $(0,1,0)$ and $(0,0,1)$ in $(T,C,F)$ order. These
+are discrete search anchors; they are not independently optimized final
+continuous trajectories.
+
+Evaluating all three metrics on each anchor gives the payoff table
+\begin{equation}
+ A=\begin{bmatrix}
+ T^{\mathrm{search}}(\Gamma_T)&C^{\mathrm{search}}(\Gamma_T)&F^{\mathrm{search}}(\Gamma_T)\\
+ T^{\mathrm{search}}(\Gamma_C)&C^{\mathrm{search}}(\Gamma_C)&F^{\mathrm{search}}(\Gamma_C)\\
+ T^{\mathrm{search}}(\Gamma_F)&C^{\mathrm{search}}(\Gamma_F)&F^{\mathrm{search}}(\Gamma_F)
+ \end{bmatrix}.
+ \label{pr:eq:payoff}
+\end{equation}
+For objective $k\in\{T,C,F\}$, let the lower reference be the corresponding
+anchor's diagonal entry, and let the upper reference be the column maximum:
+\begin{equation}
+ b_k=A_{kk},\qquad n_k=\max_{a\in\{T,C,F\}}A_{ak},\qquad
+ \Delta_k=n_k-b_k>0.
+ \label{pr:eq:anchorscale}
+\end{equation}
+The upper reference is a payoff-table nadir approximation, not the
+maximum over all feasible paths or an exact continuous Pareto nadir.
+Degenerate reference ranges must be rejected before normalized planning;
+they are not silently replaced by an arbitrary denominator.
+
+For a metric vector $\mathbf{f}=(T,C,F)$, define
+\begin{equation}
+ \widehat T=\frac{T-b_T}{\Delta_T},\qquad
+ \widehat C=\frac{C-b_C}{\Delta_C},\qquad
+ \widehat F=\frac{F-b_F}{\Delta_F}.
+ \label{pr:eq:normalize}
+\end{equation}
+The same reference values are retained across weights, coarse and fine
+searches, and final-trajectory reporting within a fixed experiment.
+The normalized values are not clipped to $[0,1]$: a refined or retimed
+trajectory can fall outside the three-anchor reference ranges. This does
+not invalidate the normalization, but it precludes interpreting the
+reference values as exact bounds on final continuous performance.
+
+Mission preference is expressed through
+\begin{equation}
+ J=w_T\widehat T+w_C\widehat C+w_F\widehat F,\qquad
+ w_T,w_C,w_F\ge0,\quad w_T+w_C+w_F>0.
+ \label{pr:eq:objective}
+\end{equation}
+The coefficients specify relative preferences and need not sum to one.
+Multiplication of all weights by the same positive constant preserves
+path ordering for a fixed model. During graph search, the additive
+contribution of edge $e$ is
+\begin{equation}
+ c_e=\frac{w_T\Delta T_e}{\Delta_T}
+     +\frac{w_C\Delta C_e}{\Delta_C}
+     +\frac{w_F\Delta F_e}{\Delta_F}.
+ \label{pr:eq:edgeobjective}
+\end{equation}
+The lower-reference offsets are applied once to the complete path:
+\begin{equation}
+ J^{\mathrm{search}}(\Gamma_d)=\sum_{e\in\Gamma_d}c_e
+ -\left(\frac{w_Tb_T}{\Delta_T}+\frac{w_Cb_C}{\Delta_C}
+                         +\frac{w_Fb_F}{\Delta_F}\right).
+ \label{pr:eq:offset}
+\end{equation}
+The bracketed term is path independent. Subtracting the lower references
+on every edge would instead introduce a spurious dependence on the number
+of edges and would not implement Eq.~\eqref{pr:eq:objective}.
+
+This scalarization directs discrete route selection. Spline candidates
+are subsequently ranked with a separate geometric refinement score, and
+the final $(T,C,F,J)$ values are recomputed using the assigned speed
+profile. The sequential procedure is therefore not a joint global
+optimization of route geometry, speed and fuel, nor does it establish
+global Pareto optimality of the final trajectories.
+
+The sensitivity experiment fixes $w_C=1$ and evaluates
+$w_T\in\{0,0.1,\ldots,1.1\}$ and
+$w_F\in\{0,0.1,\ldots,0.5\}$, giving 72 configurations.
+The coefficients are swept rather than tuned by an additional optimizer.
+For tractability, this sweep uses coarse search followed by the same
+types of spline refinement, feasibility checks and final evaluation; it
+does not repeat the fine-corridor search for all 72 configurations.
+Consequently, it characterizes preference sensitivity of that coarse-search
+pipeline. Claims about the full two-stage pipeline require separate
+controlled comparisons and representative-case experiments that include
+the fine-corridor search.
+
+
+%% Insert after the COMPLETE Section 2, not inside the fuel model.
+\section{Proposed risk-aware two-stage trajectory planning framework}
+\label{sec:method}
+
+The framework separates route selection, geometric refinement and speed
+assignment while retaining a common mission evaluator. The coarse search
+first identifies a route under the normalized time--exposure--fuel objective.
+A fine search then resolves its local geometry within a three-dimensional
+corridor. Cubic B-splines replace the resulting polyline with differentiable
+candidates, which are screened against geometric constraints and ranked
+using a dimensionless refinement score. Finally, a forward--backward pass
+assigns speeds along the selected curve, and the mission metrics are
+recomputed under the resulting motion. This decomposition limits the size
+of the search state while making the distinction between search estimates
+and final trajectory performance explicit.
+
+%% FIGURE PLACEHOLDER: overall framework; use vector PDF for the final artwork.
+%% Show mission/environment -> three raw anchors and shared scales -> coarse A*
+%% -> 3-D corridor -> fine A* -> spline candidates/repairs -> geometric checks
+%% -> minimum geometric score -> strict speed assignment -> final T, C, F, J.
+%% Show rejection exits for search, geometry and speed failures. Add a dashed
+%% coarse-to-spline branch labelled "72-case sensitivity protocol".
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/framework.pdf}
+%% \caption{Planning and evaluation workflow. Mission preferences govern graph
+%% search, whereas geometric refinement and speed assignment are subsequent
+%% stages with explicit feasibility checks.}
+%% \label{fig:framework}
+%% \end{figure}
+
+\subsection{Multi-objective risk-aware A* search}
+\label{sec:astar}
+
+The search graph represents position on an anisotropic Cartesian lattice
+with horizontal and vertical spacings $\delta_{xy}$ and $\delta_z$.
+Candidate displacements are drawn from
+\begin{equation}
+ \mathcal{D}=\{(a\delta_{xy},b\delta_{xy},c\delta_z):
+ a,b,c\in\{-1,0,1\},\ (a,b,c)\ne(0,0,0)\}.
+ \label{me:eq:neighbors}
+\end{equation}
+Purely vertical moves are excluded, and a displacement is retained only
+if its climb angle satisfies the prescribed bound. The map boundary,
+altitude envelope and hard exclusion regions further restrict the
+admissible graph. Each retained edge is checked at ten spatial locations,
+including its endpoints; the nine intervening subsegments supply the
+midpoint quadrature for exposure and fuel. A graph state contains position
+only. Heading, curvature and acceleration feasibility are consequently
+resolved after search rather than represented as additional state variables.
+
+For a partial path ending at $\mathbf p$, the accumulated search cost is
+$G(\mathbf p)=\sum_e c_e$, with $c_e$ defined in
+Eq.~\eqref{pr:eq:edgeobjective}. The A* priority is
+\begin{equation}
+ f(\mathbf p)=G(\mathbf p)+h(\mathbf p),\qquad
+ h(\mathbf p)=\frac{w_T}{\Delta_T}
+              \frac{\|\mathbf p-\mathbf p_g\|}{v_{\mathrm{cr}}}.
+ \label{me:eq:heuristic}
+\end{equation}
+No heuristic inflation is used. The heuristic retains only a lower bound
+on the time contribution: risk and fuel are nonnegative, and the search
+time of an edge is at least its length divided by $v_{\mathrm{cr}}$.
+For adjacent states $\mathbf p$ and $\mathbf q$, the triangle inequality
+therefore gives
+\begin{equation}
+ h(\mathbf p)-h(\mathbf q)
+ \le \frac{w_T\|\mathbf p-\mathbf q\|}{\Delta_Tv_{\mathrm{cr}}}
+ \le c_{(\mathbf p,\mathbf q)}.
+ \label{me:eq:consistency}
+\end{equation}
+Thus, the heuristic is consistent for the fixed graph and edge model.
+When $w_T=0$, it becomes zero and the primary search reduces to uniform-cost
+expansion. Equal primary priorities are ordered using accumulated geometric
+length plus Euclidean distance to the goal, providing a deterministic
+geometric preference in flat-cost regions. This secondary criterion does
+not add a distance penalty to the mission objective.
+
+The constant lower-reference offset in Eq.~\eqref{pr:eq:offset} is restored
+when reporting the complete path objective. It is not included repeatedly
+in edge costs. The resulting minimum-cost interpretation concerns the
+discretized search problem, subject to numerical tolerances and successful
+search termination. It does not extend to the subsequently modified and
+retimed continuous trajectory.
+%% Cite a verified primary A* reference here when finalizing the bibliography.
+
+\subsection{Coarse-to-fine three-dimensional planning}
+\label{sec:coarsefine}
+
+A uniform fine lattice over the entire workspace requires many expansions
+in regions that are irrelevant to a particular mission preference. The
+two-stage search instead uses a coarse path $\Gamma_c$ to restrict the
+domain of a second, finer search. For any polyline $\Gamma$, define
+\begin{equation}
+ d(\mathbf p,\Gamma)=
+ \min_{[\mathbf a,\mathbf b]\in\Gamma}\;
+ \min_{\tau\in[0,1]}
+ \|\mathbf p-\mathbf a-\tau(\mathbf b-\mathbf a)\|.
+ \label{me:eq:distance}
+\end{equation}
+This distance uses the closest point on a segment, rather than the closest
+waypoint, and treats horizontal and vertical displacement in the same
+three-dimensional metric. The search corridor is
+\begin{equation}
+ \mathcal C(\Gamma_c,r_c)=
+ \{\mathbf p\in\mathcal W:d(\mathbf p,\Gamma_c)\le r_c\}.
+ \label{me:eq:corridor}
+\end{equation}
+Where grid snapping changes an endpoint, the physical endpoint is connected
+to the coarse polyline when constructing the corridor reference. The
+endpoints used in the present experiments lie on both lattices.
+
+The fine graph retains nodes inside this corridor and samples candidate
+edges to prevent a connection between admissible endpoints from leaving
+the corridor unchecked. For the reported settings, corridor probes are
+spaced no more than approximately $100~\mathrm{m}$ along an edge, with at
+least three probes. Altitude and obstacle screening remain active. Both
+search stages use the same objective weights and the same anchor-derived
+normalization scales; the fine stage does not recompute its own anchors.
+
+The fine result $\Gamma_f$ is obtained by a new graph search, not by
+interpolating $\Gamma_c$. Its finer directional and altitude resolution
+permits local route changes, but the corridor limits which alternatives
+can be explored. The construction therefore trades search coverage for
+computational tractability; it does not guarantee equivalence to an
+unrestricted fine-grid search. A failed fine search is reported as a
+failure rather than relabeling the coarse path as a fine result.
+
+%% FIGURE PLACEHOLDER: coarse/corridor/fine geometry, preferably two panels.
+%% Use the SAME actual case: (a) plan view with coarse and fine paths and
+%% corridor; (b) 3-D detail or altitude profile showing vertical refinement.
+%% Do not draw the 3-D corridor merely as a fixed-width horizontal strip.
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/coarse_corridor_fine.pdf}
+%% \caption{Coarse-to-fine route refinement within a three-dimensional
+%% distance corridor. The corridor restricts the fine search domain.}
+%% \label{fig:coarsefine}
+%% \end{figure}
+
+\subsection{Cubic B-spline trajectory refinement}
+\label{sec:bspline}
+
+The fine polyline satisfies the edge-level search constraints but retains
+direction discontinuities at its vertices. Let
+$\{\mathbf P_i\}_{i=0}^{n-1}$ denote its ordered vertices after removal of
+consecutive duplicates. A cubic parametric B-spline is fitted as
+\begin{equation}
+ \mathbf q_\sigma(u)=\sum_{j=0}^{K_\sigma-1}
+ B_{j,3}(u)\mathbf c_j,\qquad u\in[0,1],
+ \label{me:eq:spline}
+\end{equation}
+where $B_{j,3}$ are cubic basis functions, $\mathbf c_j$ are control points,
+and $\sigma$ controls the fit. Chord-length parameterization assigns
+$u_i=\sum_{k=0}^{i-1}\|\mathbf P_{k+1}-\mathbf P_k\|/L_{\mathrm{raw}}$,
+where $L_{\mathrm{raw}}$ is the polyline length. The initial FITPACK
+smoothing fit uses the weighted residual condition
+\begin{equation}
+ \sum_{i=0}^{n-1}\omega_i^2
+       \|\mathbf P_i-\mathbf q_\sigma(u_i)\|^2\le\sigma,
+ \qquad
+ \omega_i=
+ \begin{cases}
+ 10^5,&i\in\{0,n-1\},\\
+ 1,&\text{otherwise}.
+ \end{cases}
+ \label{me:eq:fit}
+\end{equation}
+Large endpoint weights promote endpoint retention, which is subsequently
+verified with an explicit tolerance. The smoothing condition controls the
+initial fit; it is not the final mission objective and is not assumed to
+remain an exact residual bound after geometric repair.
+
+To explore the balance between polyline fidelity and curvature reduction,
+the smoothing budgets are scaled to the input resolution:
+\begin{equation}
+ \sigma_j=n(\delta_{xy}\beta_j)^2.
+ \label{me:eq:budgets}
+\end{equation}
+The fixed set of 21 dimensionless factors is
+\begin{equation}
+ \begin{split}
+ \mathcal B=\{&0.02,0.03,0.04,0.05,0.0625,0.075,0.09,\\
+              &0.105,0.125,0.15,0.18,0.22,0.25,0.35,\\
+              &0.50,0.75,1.0,1.5,2.0,3.0,4.0\}.
+ \end{split}
+ \label{me:eq:budgetset}
+\end{equation}
+Every budget is examined before selecting a candidate. Small budgets
+retain the lattice geometry more closely; larger budgets allow greater
+deformation but must still satisfy the local-deviation and flight-envelope
+tests. The input is $\Gamma_f$ for the complete two-stage method and
+$\Gamma_c$ for the separate coarse-search sensitivity protocol.
+
+Geometric repair addresses constraint violations introduced by smoothing.
+Altitude repair raises deficient sampled altitudes relative to the spatial
+altitude floor and refits the corrected points. Climb repair limits the
+vertical slope using margins below $\tan\gamma_{\max}$ while retaining
+the sampled horizontal coordinates before refitting. These operations
+generate revised candidates, each of
+which is rechecked against the full geometric test set. Repair is a
+feasibility procedure and need not reduce the mission objective.
+
+The terminal heading is inferred from the incoming raw route over a
+lookback length of $\max(5\delta_{xy},1000~\mathrm{m})$, using the horizontal
+chord from the selected upstream vertex to the goal. If the initial
+candidate pass finds no geometrically feasible curve and includes a
+heading violation, a second pass aligns the final control-polygon edge
+with this reference and reevaluates all smoothing budgets. The adjustment
+retains the endpoint coordinates and control-point altitudes. The method
+thus preserves the approach direction implied by the route; it does not
+enforce an independently specified terminal mission heading.
+
+For regular curves with simple interior knots, cubic B-splines provide
+$C^2$ geometric continuity and permit curvature evaluation from analytic
+derivatives. This property removes polyline corners, but does not by itself
+establish feasibility or imply continuous jerk in the time-parameterized
+motion. Those issues require the subsequent geometric and speed checks.
+%% Cite the verified FITPACK/Dierckx reference used by the installed SciPy
+%% implementation when finalizing the bibliography.
+
+\subsection{Geometric feasibility validation and candidate selection}
+\label{sec:trajectory_validation}
+
+Candidate curves are evaluated at $M=4096$ uniformly spaced parameter
+values. Their analytic derivatives give spatial curvature through
+Eq.~\eqref{pr:eq:curvature} and the local flight-path angle
+\begin{equation}
+ \gamma(u)=\arctan\!left(
+ \frac{|q'_z(u)|}{\sqrt{q'_x(u)^2+q'_y(u)^2}}\right).
+ \label{me:eq:splineangle}
+\end{equation}
+Finite coordinates and nonzero tangents are required. The geometric
+turning-radius threshold is
+\begin{equation}
+ R_{\mathrm{ref}}=
+ \max\left\{R_{\mathrm{floor}},
+       \frac{v_{\mathrm{stall}}^2}{g\tan\phi_{\max}}\right\}.
+ \label{me:eq:radius}
+\end{equation}
+Requiring $\kappa\le1/R_{\mathrm{ref}}$ prevents acceptance of a turn
+that already exceeds the bank envelope at stall speed. It does not require
+the curve to support cruise speed everywhere, because speed can subsequently
+decrease in curved sections.
+
+A candidate must also satisfy the altitude envelope, avoid the hard
+exclusion regions, retain both endpoints within $2~\mathrm{m}$, and match
+the terminal horizontal heading within $12^\circ$. Its maximum distance
+from the input polyline must satisfy
+\begin{equation}
+ d(\mathbf q_\sigma(u),\Gamma_{\mathrm{raw}})\le r_s
+ \label{me:eq:locality}
+\end{equation}
+at the validation samples. Here $r_s$ is a refinement locality limit,
+distinct from the coarse-search corridor radius $r_c$. In the default
+configuration, membership of the final spline in the coarse corridor is
+recorded diagnostically, whereas locality relative to the raw input curve
+is enforced. Obstacles and the altitude envelope remain hard requirements.
+
+Among the geometrically admissible candidates, selection balances bending,
+curvature variation, deviation and length. Let $s$ denote arc length,
+$L_\sigma$ the candidate length, and $\kappa_s=\mathrm d\kappa/\mathrm ds$.
+The dimensionless components are
+\begin{align}
+ Q_b&=\frac{1}{L_\sigma}
+       \int_0^{L_\sigma}(R_{\mathrm{ref}}\kappa)^2\,\mathrm ds,
+       \label{me:eq:bending}\\
+ Q_v&=R_{\mathrm{ref}}^3
+       \int_0^{L_\sigma}\kappa_s^2\,\mathrm ds,
+       \label{me:eq:variation}\\
+ Q_d&=\frac{1}{r_s}
+       \sqrt{\frac{1}{M}\sum_{m=0}^{M-1}
+       d(\mathbf q_\sigma(u_m),\Gamma_{\mathrm{raw}})^2},
+       \qquad u_m=\frac{m}{M-1},
+       \label{me:eq:deviation}\\
+ Q_l&=\frac{L_\sigma}{L_{\mathrm{raw}}}.
+       \label{me:eq:length}
+\end{align}
+The integrals use the cumulative chord-length coordinate of the dense
+samples and trapezoidal quadrature; $\kappa_s$ is estimated numerically
+on that coordinate. In contrast, $Q_d$ is the root-mean-square deviation
+over uniform parameter samples, not an arc-length-weighted integral.
+The curvature-variation term penalizes spatial changes in curvature;
+it is not a roll-rate constraint.
+
+The refinement score and selection rule are
+\begin{equation}
+ J_s=0.4Q_b+0.3Q_v+0.2Q_d+0.1Q_l,\qquad
+ \mathbf q^*=\mathop{\arg\min}_{\mathbf q\in\mathcal Q_{\mathrm{geom}}}
+ J_s(\mathbf q),
+ \label{me:eq:selection}
+\end{equation}
+where $\mathcal Q_{\mathrm{geom}}$ contains the admitted candidates from
+the applicable fitting and repair pass. The four coefficients are fixed
+geometric design settings, independent of $(w_T,w_C,w_F)$. Selection
+enumerates the candidate set rather than stopping at the first feasible
+smoothing budget. It is a finite candidate comparison, not a global
+optimization over all spline control points.
+
+If no geometrically admissible candidate exists, refinement fails. A
+diagnostic fallback curve is not accepted as a mission trajectory. The
+selected curve must next pass strict speed validation; the present
+procedure does not rerank alternative candidates following a speed-stage
+failure. Final acceptance therefore requires both stages to succeed.
+Because geometric tests use finite sampling, acceptance has the numerical
+meaning stated in Section~\ref{pr:sec:constraints}.
+
+\subsection{Adaptive speed planning and final mission evaluation}
+\label{sec:speed}
+
+The selected spline is resampled at approximately uniform arc-length
+spacing. A dense set of 8000 parameter probes supplies the cumulative
+length map, which is inverted to obtain the final samples
+$\{\mathbf q_i\}_{i=0}^{N}$. Their chord lengths are
+$\ell_i=\|\mathbf q_{i+1}-\mathbf q_i\|$, and $\kappa_i$ is evaluated
+from the spline derivatives at the corresponding parameters. The target
+spacing is $100~\mathrm{m}$ in both experimental protocols.
+
+The vertical-rate ceiling of a nondegenerate segment is
+\begin{equation}
+ \bar v_{z,i}=\begin{cases}
+ v_{\mathrm{asc},\max}\ell_i/|z_{i+1}-z_i|,&z_{i+1}>z_i,\\
+ v_{\mathrm{des},\max}\ell_i/|z_{i+1}-z_i|,&z_{i+1}<z_i,\\
+ +\infty,&z_{i+1}=z_i.
+ \end{cases}
+ \label{me:eq:verticalcap}
+\end{equation}
+This ceiling is assigned to both endpoints of the segment. At node $i$,
+the admissible speed ceiling is
+\begin{equation}
+ \bar v_i=\min\left\{
+ v_{\mathrm{cr}},v_{\max},
+ \sqrt{\frac{g\tan\phi_{\max}}{\kappa_i}},
+ \min_{e\in\mathcal E_i}\bar v_{z,e}\right\},
+ \label{me:eq:nodecap}
+\end{equation}
+where $\mathcal E_i$ comprises adjacent segments and the curvature term is
+infinite on a straight segment. A ceiling below $v_{\mathrm{stall}}$
+causes rejection, rather than a speed assignment below stall.
+
+With $v_0^+=v_{\mathrm{stall}}$, the forward pass propagates the acceleration
+bound:
+\begin{equation}
+ v_{i+1}^+=\min\left\{\bar v_{i+1},
+       \sqrt{(v_i^+)^2+2a_{\mathrm{acc},\max}\ell_i}\right\},
+ \qquad i=0,\ldots,N-1.
+ \label{me:eq:forward}
+\end{equation}
+The backward pass anticipates downstream speed reductions:
+\begin{equation}
+ v_N=v_N^+,\qquad
+ v_i=\min\left\{v_i^+,
+       \sqrt{v_{i+1}^2+2a_{\mathrm{dec},\max}\ell_i}\right\},
+ \qquad i=N-1,\ldots,0.
+ \label{me:eq:backward}
+\end{equation}
+No terminal-speed equality is introduced. Applying a segment's vertical
+ceiling at both ends bounds its largest vertical speed under the adopted
+constant-tangential-acceleration segment model. The final validation checks
+speed, turning, climb angle, vertical rate and tangential acceleration;
+failure prevents the trajectory from being reported as feasible.
+
+The accepted speed sequence supplies segment times through
+Eq.~\eqref{pr:eq:segmenttime}. Time, exposure and fuel are then evaluated
+with the common subsegment quadrature in Eq.~\eqref{pr:eq:quadrature},
+including renewed altitude and collision screening, and normalized using
+the unchanged anchor scales. This last evaluation is essential because
+spline deformation changes the spatial threat field sampled by the
+vehicle, while retiming changes both residence time and fuel expenditure.
+Consequently, a lower geometric refinement score does not by itself imply
+a lower final mission objective. The reported output is the accepted
+geometry, its assigned speed profile and the recomputed $(T,C,F,J)$;
+search-stage estimates are retained separately for diagnosis and ablation.
+
+%% FIGURE PLACEHOLDER: use measured outputs in Section 4.2, not synthetic data.
+%% Suggested panels: local raw/spline geometry; analytic spline curvature
+%% with 1/R_ref; speed with stall/local ceilings; climb and vertical-rate
+%% profiles with limits. Raw-polyline corner curvature is diagnostic only.
+
+
+\section{Numerical results and discussion}
+\label{sec:results}
+
+%% 第四章执行总顺序（以下 %% 均为写作/实验备注，不进入编译正文）：
+%% 1. 冻结并备份当前代码、baseline、72 组结果及运行环境，先验收数据，再画图。
+%% 2. 完成 4.1 参数与环境图；不运行新搜索即可完成这一部分。
+%% 3. 对现有 sweep 做 4.3，得到确定的代表权重；完成选择后再做 4.2/4.4。
+%% 4. 单独运行时间单目标完整流程，以及所选代表权重的完整两阶段流程。
+%%    若代表权重重复，只运行一次，并如实报告代表规则得到同一个解。
+%% 5. 用每次 main 的粗/细原始/最终路径完成 4.2，用代表案例完成 4.4。
+%% 6. 最后写第四章开头的实验概览、摘要结果句和结论，不提前填提升百分比。
+%% 已完成且签名一致的 72 组不用为了画图再次运行。不要使用 --fresh 作为画图步骤。
+%% 下面正文只给出代码可核实的设置；4.2--4.4 的结果叙述等待实测数据。
+
+\subsection{Simulation setup}
+\label{sec:setup}
+
+The simulation uses a $100\times100~\mathrm{km}$ horizontal workspace
+containing five ground-based radar sites and five associated cylindrical
+exclusion zones. The radar layout is generated with seed 42 and held fixed
+throughout the preference comparison. Each radar has a hemispherical
+coverage radius of $15~\mathrm{km}$, while its colocated hard zone has a
+horizontal radius of $6~\mathrm{km}$ and a height of $5~\mathrm{km}$.
+The power-law exposure model uses an inner-radius ratio of 0.3 and an
+exponent of 4, with overlapping fields combined by their maximum.
+These settings define a controlled synthetic environment; they are not
+calibrated measurements of a particular radar or aircraft system.
+
+The mission endpoints are $(2,2,0)$ and $(98,98,0)~\mathrm{km}$.
+The en-route altitude interval is $1$--$10~\mathrm{km}$, with a
+$5~\mathrm{km}$ horizontal transition distance at each endpoint.
+The zero endpoint altitude is the reference used for the airborne
+trajectory model, as described in Section~\ref{pr:sec:constraints}.
+The vehicle and energy parameters are listed in Table~\ref{tab:aircraft};
+the numerical planning settings are summarized in
+Table~\ref{tab:planning}.
+
+\begin{table}[t]
+ \centering
+ \caption{Parameters of the reduced fixed-wing model.}
+ \label{tab:aircraft}
+ \small
+ \begin{tabular}{ll}
+ \hline
+ Parameter & Value \\
+ \hline
+ Constant mass & $1100~\mathrm{kg}$ \\
+ Wing reference area & $11.5~\mathrm{m^2}$ \\
+ Gravitational acceleration & $9.81~\mathrm{m\,s^{-2}}$ \\
+ Stall / cruise / aircraft maximum speed & $33 / 55 / 83~\mathrm{m\,s^{-1}}$ \\
+ Maximum ascent / descent rate & $12 / 15~\mathrm{m\,s^{-1}}$ \\
+ Tangential acceleration / deceleration bound & $3 / 4~\mathrm{m\,s^{-2}}$ \\
+ Maximum bank / flight-path angle & $30^\circ / 15^\circ$ \\
+ Structural turning-radius floor & $50~\mathrm{m}$ \\
+ Zero-lift drag coefficient / aspect ratio & $0.025 / 18$ \\
+ Oswald efficiency & $0.85$ \\
+ Climb / overall propulsive efficiency & $0.80 / 0.30$ \\
+ Descent energy recovery fraction & $0$ \\
+ Fuel lower heating value & $43~\mathrm{MJ\,kg^{-1}}$ \\
+ Sea-level density / density scale height & $1.225~\mathrm{kg\,m^{-3}} / 8500~\mathrm{m}$ \\
+ \hline
+ \end{tabular}
+\end{table}
+
+\begin{table}[t]
+ \centering
+ \caption{Search and trajectory-evaluation settings. The sweep and the
+ complete two-stage method use different input resolutions and locality limits.}
+ \label{tab:planning}
+ \small
+ \begin{tabular}{ll}
+ \hline
+ Parameter & Value \\
+ \hline
+ Coarse horizontal / vertical spacing & $2000 / 500~\mathrm{m}$ \\
+ Fine horizontal / vertical spacing & $200 / 50~\mathrm{m}$ \\
+ Three-dimensional fine-search corridor radius & $600~\mathrm{m}$ \\
+ Spline locality limit, fine input & $200~\mathrm{m}$ \\
+ Spline locality limit, coarse sweep input & $3015.90~\mathrm{m}$ \\
+ Search edge probes / quadrature subsegments & $10 / 9$ \\
+ A* heuristic inflation factor & $1.0$ \\
+ Initial smoothing budgets & $21$ \\
+ Spline geometric validation samples & $4096$ \\
+ Arc-length inversion probes & $8000$ \\
+ Final target sampling distance & $100~\mathrm{m}$ \\
+ Endpoint / terminal-heading tolerance & $2~\mathrm{m} / 12^\circ$ \\
+ Initial speed & $33~\mathrm{m\,s^{-1}}$ \\
+ Terminal speed & No prescribed equality \\
+ \hline
+ \end{tabular}
+\end{table}
+
+Two protocols address different experimental questions. The complete
+two-stage protocol comprises coarse search, corridor-restricted fine search,
+spline refinement and strict speed validation. It supports the controlled
+comparisons and representative-case assessment. The sensitivity protocol
+uses coarse search followed by refinement and speed validation for each
+of the 72 weight configurations specified in
+Section~\ref{pr:sec:objective}. Its locality limit is scaled to the coarse
+cell diagonal,
+\begin{equation}
+ r_s^{\mathrm{sweep}}=1.05\sqrt{2(2000)^2+(500)^2}
+                    \simeq3015.90~\mathrm{m},
+ \label{ex:eq:sweeptrust}
+\end{equation}
+whereas the complete method uses $r_s=200~\mathrm{m}$ relative to the fine
+polyline. The two protocols share the threat and aircraft models, objective
+scales, candidate-ranking rule and final metric definitions. Their
+different search domains and locality limits are retained explicitly
+when interpreting the results.
+
+Search-stage and final-trajectory quantities are distinguished throughout
+the analysis. Flight time $T$, exposure $C$ and fuel $F$ are reported in
+seconds, exposure-seconds and kilograms, respectively; path length is
+reported in kilometres. The exposure integral measures time-weighted
+presence in the prescribed field, not a mission-level detection probability.
+Cross-preference comparisons use the physical vector $(T,C,F)$: a value
+of $J$ computed with one weight vector cannot directly rank a trajectory
+scored with another. For a controlled comparison at fixed weights, the
+shared anchor normalization provides the common scalar objective.
+
+%% 4.1 操作与核对：
+%% A. 环境来自 radar_environment_5zones.py::generate(seed=42)，正文使用 main.py
+%%    实际端点 (2,2,0)/(98,98,0) km，不用环境类内部默认的 (5,5)/(95,95)。
+%% B. 从运行缓存/原始环境导出五站坐标；归档精确值，不用截图反读坐标。
+%% C. 填真实实验机器 CPU、RAM、操作系统、Python/NumPy/SciPy 版本。
+%%    本次写作机器的软件版本不能自动充当先前实验的版本。
+%% D. 归档 baseline.pkl 中的三个 anchor 原始 T/C/F 与六个尺度参考值；
+%%    三条 anchor 未做最终样条处理，不混进“最终轨迹”比较表。
+%% E. 计时应分别报告 anchor（一次性）、粗搜索、细搜索、样条、速度/评价。
+%%    不把绘图/Excel 导出时间混进搜索时间，不把缓存加载时间当重新计算时间。
+%%    只有实际补做重复测量后才能写重复次数、均值/标准差；同图重复计时
+%%    反映计算波动，不是多环境统计证据。未测步骤写未记录，不填 0。
+%% F. preflight_check.py 可作运行前检查；程序测试不能代替实验数据验收。
+%% G. 建议最小数值核查：对选定轨迹另做更密集几何/积分采样，比较最小净空、
+%%    最大曲率、最大角度和 T/C/F 的变化；固定几何时无需重跑 A* 或 72 组。
+%%    100 -> 50 m 若重新分配速度，属于“离散化+速度策略”联合变化，须单列；
+%%    不把它说成仅积分误差。未完成上述核查前不宣称数值收敛或连续安全认证。
+
+%% FIGURE PLACEHOLDER: environment overview; let LaTeX assign figure numbers.
+%% Panels: (a) 3-D hemispheres and hard cylinders with mission endpoints;
+%% (b) exposure slices at stated altitudes with shared [0,1] color scale.
+%% Hard-zone disk only appears when the slice altitude is <= 5 km.
+%% Use physical axis units and distinguish hard zones from traversable exposure.
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/threat_environment.pdf}
+%% \caption{Synthetic mission environment with five radar fields and colocated
+%% hard exclusion zones. Soft exposure remains traversable and contributes
+%% to the time-integrated objective.}
+%% \label{fig:environment}
+%% \end{figure}
+
+\subsection{Overall performance and controlled ablation}
+\label{sec:ablation}
+
+%% 本节回答三个不同问题：任务代价是否改变选路；细网格改变了哪些搜索几何；
+%% 样条与速度规划如何得到被数值验收的飞行轨迹。不要把三种变化混成单一增益。
+%% 建议总表：行=Time-oriented final / Risk-aware final / Coarse raw /
+%% Fine raw（后两行按同一风险权重）；列=表示阶段、权重、L、T、C、F、J、
+%% 节点数、分阶段耗时。Raw 行的指标加 search 上标，不与 final 行算“总提升”。
+%% 几何/动力学指标另表或配图，避免一张表过宽。表头明确单位及检查口径。
+
+\subsubsection{Time-oriented A* versus risk-aware planning}
+\label{sec:objective_comparison}
+
+%% 研究问题：在相同离散结构与后处理下，加入暴露/燃油偏好是否改变路线，
+%% 带来多大的暴露--时间--燃油权衡，而不是证明 A* 被一种新搜索机制击败。
+%% 步骤 1：定义 baseline 权重 (w_T,w_C,w_F)=(1,0,0)。这是时间单目标 A*；
+%%         因垂直率限时，不能无条件写成 shortest-distance A*。
+%% 步骤 2：固定一组公开选择规则得到的 risk-aware 权重（例如 4.3 的平衡解）；
+%%         不挑一个只让结果最好看的权重；main 默认 (0.3,1,0.2) 不是自动平衡解。
+%% 步骤 3：两组均用完整两阶段流程、同一环境/端点/网格/半径/飞机/归一化/
+%%         平滑与速度算法。路线不同导致 corridor 不同，这是目标改变的后果。
+%%         该实验评估完整流程的偏好效果，不是严格锁定同一个 fine graph。
+%% 步骤 4：每次运行先归档 planned_path.pkl、planned_path_coarse.pkl、baseline、
+%%         完整日志及参数/代码快照；main 默认文件名会被下一次运行覆盖。
+%% 步骤 5：仅在双方最终可行时，列最终 L、T、C、F、最高高度及计算耗时。
+%%         想比较 J 时，用同一个声明的参考权重重新评价两条最终轨迹；
+%%         不比较各自不同权重下的 J，且 J 可为负，不宜笼统算百分比下降。
+%% 步骤 6：物理指标百分比采用 100*(new-base)/base，明确负值表示下降；
+%%         base=0（尤其 C=0）时报告绝对差，不加任意 epsilon 制造百分数。
+%% 图：同一坐标/同一高度风险说明下叠加两条三维路径和俯视路径，补高度剖面。
+%% 段落顺序：共同设置 -> 数字差异 -> 通过/绕过/爬升避让的几何证据 -> 代价。
+%% 结论边界：可说“在该场景和偏好下”，不能推论所有环境都降低 T、C、F。
+%% 若某方案失败，报告失败阶段和条件，不把缺失值补成零或隐去该工况。
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/time_vs_risk_aware.pdf}
+%% \caption{Final trajectories obtained with time-oriented and risk-aware
+%% objectives under the common two-stage planning and validation protocol.}
+%% \label{fig:objective_comparison}
+%% \end{figure}
+
+\subsubsection{Coarse versus fine planning}
+\label{sec:resolution_comparison}
+
+%% 研究问题：在同一次两阶段运行中，细网格对粗路线做了哪些局部调整？
+%% 数据：同一次归档的 planned_path_coarse.pkl['path','stats'] 与
+%%       planned_path.pkl['path_raw','stats_raw']，不是后者的最终 path/stats。
+%% 步骤 1：核对权重、baseline 和环境一致；对齐原始粗/细两条路径。
+%% 步骤 2：列搜索口径 L、T_search、C_search、F_search、J_search、扩展节点、
+%%         coarse_time、fine_time；细阶段时间不等于完整两阶段总时间。
+%% 步骤 3：画三维/局部放大与高度剖面，解释网格转向和高度选择改变的位置。
+%% 步骤 4：检查细路径到粗中心线的三维距离及 600 m 限制；不可拿二维投影
+%%         距离替代真实三维距离。最终 spline 可能出 coarse corridor，另属后处理。
+%% 步骤 5：报告改善、不变或变差；原始粗边可能不属于 corridor 中的细图边，
+%%         因此没有先验“细网格目标必定更优”的保证。
+%% 图可直接复用 Section 3 的 coarse_corridor_fine 图，在此引用，避免重复图片。
+%% 不可把该对比写成“相对全域细网格节省 X%”：那需要另运行全域细网格基线。
+%% 不可用 coarse raw vs fine final 把细化、平滑、变速三种效果合并称网格收益。
+
+\subsubsection{Fine raw path versus B-spline trajectory}
+\label{sec:refinement_comparison}
+
+%% 研究问题：连续化改动多少几何，经过哪些验证，可执行性代价是什么？
+%% 数据：同一个 planned_path.pkl 中 path_raw、path、smooth_result、
+%%       curvature_smooth、speed_profile、accel_profile、stats_raw、stats。
+%% 步骤 1：画原始/最终局部转弯及高度剖面；给 L、最大/RMS 局部偏离、端点误差、
+%%         末端航向误差，说明是否满足 200 m、2 m、12 deg 等对应阈值。
+%% 步骤 2：最终曲率必须用保存的解析 curvature_smooth 或 tck 导数；原始折线
+%%         顶点曲率不连续，三点估计仅为网格诊断，不能宣布其连续最大曲率有限。
+%% 步骤 3：画最终曲率与 1/R_ref、速度与失速/局部上限、切向加减速度与 -4/+3、
+%%         爬升角与 15 deg、垂直率与 -15/+12。用带符号加速度区分加速与减速。
+%%         垂直率验收包含段内最大值，不仅看平均 dz/dt 曲线。
+%% 步骤 4：报告最小硬区净空/碰撞检测、最低高度包络余量、全部几何验收状态；
+%%         一张看起来平滑的图不能代替这些检查。有限采样不等于连续证明。
+%% 步骤 5：列候选数、可行候选数、所选 sigma、J_s 分量、是否航向修复；
+%%         21/42 是平滑预算尝试数，内部修复可能多次验算，不能当总验证调用数。
+%% 步骤 6：T_search/C_search/F_search 与 final T/C/F 分列，说明差别含几何与
+%%         速度变化；不能把原始折线称为已满足固定翼转弯约束的可飞行对照。
+%%         若要单独归因速度规划收益，需追加同一几何的明确可行速度对照。
+%% 段落顺序：折线局限 -> 局部几何修整 -> 约束和速度证据 -> 最终任务代价。
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/refinement_feasibility.pdf}
+%% \caption{Geometric refinement and speed-envelope validation for the same
+%% fine-search route. Constraint limits accompany the final trajectory profiles.}
+%% \label{fig:refinement}
+%% \end{figure}
+
+\subsection{Mission-preference sensitivity}
+\label{sec:sensitivity}
+
+%% 本节仅使用 coarse-search + refinement + speed 的 72 组协议，不能写成
+%% 72 组都执行了 corridor fine search，也不把重复权重当独立随机实验。
+%% 数据：output_5zones/sweep_2d_time_fuel_v5_3_1.xlsx 的“全部数据”工作表，
+%%       与 sweep_cases_v5_3_1 中匹配的逐工况缓存；入口 analysis_data_loader.py。
+%% 第一步【验收】：确认 12*6 唯一组合、w_C=1、schema/平滑版本/run_signature
+%% 一致且匹配当前基准和代码、所有成功标记和物理指标有效。不能把失败行删除
+%% 后仍声称完成 72 个有效工况。未完成时先报告进度，不制作正式完整热力图。
+%% 第二步【三目标响应】：运行 analyze_weight_sensitivity.py，画 T/C/F 三幅
+%% 热力图，x=w_T，y=w_F，使用相同网格顺序并标单位，保留零权重行列。
+%% (w_T,w_F)=(0,0) 是纯暴露目标，因为 w_C=1，并非“全零权重无目标”。
+%% 先报各指标实测范围和位置，再解释横向/纵向变化；不预写严格单调关系。
+%% 相同权重改变可能跨离散路线分支；阶梯、平台与跳变应联系路线/高度证据。
+%% 第三步【控制变量切片】：固定 w_F 比较递增 w_T，固定 w_T 比较递增 w_F。
+%% 选择提前说明的切片（例如边界及中间值），不要只展示有利曲线。
+%% 绝对数值优先；可给相邻格差值，跳变点回查原始路径和样条候选变化。
+%% 第四步【权衡散点】：用 analyze_core_tradeoffs_v2.py 的现有输出辅助，
+%% 画 T-C 散点以 F 着色，必要时补 C-F/T-F。检查每幅图采用物理量还是批内缩放。
+%% 如报告非支配集：对完整实测 T/C/F 做三目标逐对支配判断（三项<=且至少一项<），
+%% 去重规则/容差公开；称“本次采样集的非支配解”，不称真实全局 Pareto 前沿。
+%% 二维投影中的低边界不能直接等同于三目标非支配；算法也未证明扫全非凸前沿。
+%% 第五步【高度机制】：用 analyze_altitude_strategy_v2.py 和个别缓存复查；
+%% 最大高度只说明峰值，不等于全程巡航高度。联系上升耗能、密度、几何距离及
+%% 斜距暴露解释实际模式，不能先假定“越高必然越省油/越安全”。
+%% 第六步【代表选择】：运行 select_representative_weights.py，公开以下规则：
+%% 最小暴露排序 C,T,F,w_T,w_F；最短时间排序 T,C,F,w_T,w_F；
+%% 最少燃油排序 F,C,T,w_T,w_F；平衡解按批内 T/C/F min-max 归一化后的
+%% 欧氏理想点距离排序，再按 T,C,F,w_T,w_F 打破并列。常数列贡献为 0。
+%% 这是代表筛选用批内归一化，不是 Section 2 的 anchor 归一化。
+%% 指纹/平台邻居数仅为诊断，不参与选择；相同舍入指标不能证明路径完全相同。
+%% 如报告权重平台“稳健”，仅指本场景离散权重邻域响应，不指风/雷达误差鲁棒性。
+%% 建议正文三段：总体响应 -> 权衡/路线机制 -> 代表选择与局限。
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/weight_sensitivity.pdf}
+%% \caption{Time, exposure and fuel across the 72 preference configurations
+%% evaluated using coarse search followed by trajectory refinement and retiming.}
+%% \label{fig:sensitivity}
+%% \end{figure}
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/mission_tradeoffs.pdf}
+%% \caption{Observed mission trade-offs within the evaluated preference set.
+%% Marked cases are selected using the stated physical-objective rules.}
+%% \label{fig:tradeoffs}
+%% \end{figure}
+
+\subsection{Representative mission scenarios}
+\label{sec:representative}
+
+%% 目的：检验 coarse sweep 选出的任务偏好在完整两阶段流程中表现如何。
+%% 这是同一环境的不同任务偏好案例，不是三个独立环境；标题亦可改为
+%% Representative mission preferences，以避免读者误解。
+%% 步骤 1：读取 representative_weights.csv，优先选最小暴露/平衡/最短时间。
+%%         若燃油权衡是核心贡献，补最少燃油，或在表中列出该解并解释重合。
+%%         选择规则固定；不同规则可选同一权重，不强行造三个不同代表。
+%% 步骤 2：先保存当前 main.py 配置与现有结果，设置每个已选权重并运行完整
+%%         main.py，分别归档源码配置、两种 pkl、日志、环境和 baseline。
+%%         更改 main 权重会改变 main 结果签名；跨案例比较应使用各自归档
+%%         配置核对，不能手改缓存签名骗过当前加载器。不要改 sweep 源码。
+%% 步骤 3：每个案例核对 final success、包络/转弯/速度/加速/航向验证；失败
+%%         如实报告，不悄悄换成 sweep 结果冒充 full-pipeline final。
+%% 步骤 4：表列选择规则、(w_T,w_C,w_F)、最终 L/T/C/F、最高高度、最小半径、
+%%         最大爬升角、航向误差、计算耗时。J 仅在同一参考权重下才可横向比较。
+%% 步骤 5：叠加三维/俯视轨迹、统一横轴的高度剖面，解释绕飞或穿越软暴露区。
+%%         暴露累计曲线须使用与最终 evaluator 相同的变速积分时间；终值应为 C。
+%%         不要用旧恒速积分函数生成“累计暴露曲线”再与变速最终 C 混用。
+%% 步骤 6：若对比 coarse-screening vs full-pipeline，逐项报告 T/C/F 变化。
+%%         这同时改变 fine search 与 locality 半径（约3016 m -> 200 m），
+%%         只能解释为协议差异，不能单独归因于 finer grid。
+%% 步骤 7：说明代表性权重是在 coarse 协议中选出，未证明 full-pipeline 下
+%%         仍是全72组最小暴露/最快/最省油。可称“由最小暴露规则选出的偏好”。
+%% 段落顺序：选择与执行协议 -> 每个案例的空间/速度行为 -> 实测代价 -> 适用边界。
+%% 不同权重的效果可能在完整流程中收敛、反转或失败；以结果为准。
+%% \begin{figure}[t]
+%% \centering
+%% \includegraphics[width=\linewidth]{figures/representative_missions.pdf}
+%% \caption{Complete two-stage trajectories for preferences selected from the
+%% coarse-search sensitivity experiment, shown in the common threat environment.}
+%% \label{fig:representatives}
+%% \end{figure}
+
+%% 第四章收尾：仅在完成数据后写 1 段综合讨论。分别回答偏好作用、细化作用、
+%% 可行性证据；列明计算开销及代价，而非只列优势。承认单一合成布局、简化
+%% 气动/能耗与静态威胁、有限候选和采样的适用范围。无需为写作而重跑全部72组。
+%% 若要声称跨场景泛化、真实飞行鲁棒或统计显著，必须另设计相应实验，不能
+%% 用本节同一环境的权重扫频替代。这些尚未做的工作可放未来工作。
+
+
+\section{Conclusions}
+\label{sec:conclusions}
+%% 完成第四章后写：方法解决的问题 -> 经实测支持的关键结果 -> 代价和边界。
+%% 不声称全局最优、真实飞行验证、跨场景鲁棒或未进行的显著性检验。
+%% 补充未来工作时与实际局限对应，避免用展望代替本稿必须提供的证据。
+
+%% BIBLIOGRAPHY PLACEHOLDER: replace with verified, relevant primary references.
+%% The template's example appendix and Lamport example citation were removed.
+%% Add the A*, FITPACK/B-spline, flight-envelope and related-work references
+%% after checking their metadata and the claims for which they are cited.
+%% \bibliographystyle{elsarticle-num}
+%% \bibliography{references}
+
+\end{document}
