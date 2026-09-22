@@ -1,3 +1,36 @@
+# Consolidated plotting entry points (2026-09-22)
+
+- Consolidated eight plotting/analysis scripts into four entry points:
+  `plot_trajectory.py`, `plot_flight_constraints.py`,
+  `analyze_radar_interaction.py`, and `analyze_weight_sensitivity.py`.
+  Removed the seven replaced source files, unused imports, and an unused
+  spline-resampling helper. The root now contains 22 Python files instead of 26.
+- Trajectory views share one 3-D hemisphere/cylinder renderer. Radar clearance
+  and sampled penetration remain separate functions with shared input/environment.
+  Speed and turn-radius figures share validated final samples; raw curves remain
+  diagnostic proxies. The altitude profile now uses 3-D cumulative distance.
+- Entry points have main guards and do not read results or draw on import.
+  Trajectory/radar entries default to all views and support `--view` selection.
+  Main's eight plotting calls use the new entries and explicit views, preserving
+  its coarse/fine figure handling. All historical PNG names are retained; the
+  two heatmap names now use the same figure and one implementation.
+- Updated README, quick-start commands and the paper plan's script inventory.
+  The core planners, data readers, preflight checks, tests and experiment data
+  remain independent. Earlier sections below are historical revision records.
+- Validation: 42 regression tests and all 11 preflight checks passed. All 22
+  Python files parse; active source/usage instructions have no deleted-script
+  references. The real saved balanced sweep case produced nine valid PNGs via
+  the three merged trajectory/radar CLIs. Synthetic 72-row fixture rendering
+  produced three weight figures (including the heatmap filename alias); those
+  are test data, not new sweep results. Logs and reports are retained under
+  `output_5zones/validation_merged_plots/`, `merge_regressions.log`,
+  `merge_preflight.log`, and `merge_weight_fixture.log` in `output_5zones/`.
+- All eight sweep-hashed source files are unchanged; the saved balanced case
+  still passes signature/trajectory validation. This refactor does not require
+  repeating the sweep. Main's source signature changes with its plotting calls,
+  so prior main caches require regeneration. No full 72-case search or main
+  fine-search run was performed for this consolidation.
+
 # Unified analysis and trajectory plotting (2026-09-21)
 
 - The shared workbook reader now requires 72 successful current-version cases,

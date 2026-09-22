@@ -65,7 +65,9 @@ automatic fallback to an older workbook.
 
 To plot a completed sweep case directly (PowerShell):
   $env:TRAJECTORY_FILE = "output_5zones/sweep_cases_v5_3_1/wt_0.3_wf_0.2.pkl"
-  python visualize_speed_profile_english.py
+  python plot_trajectory.py
+  python plot_flight_constraints.py
+  python analyze_radar_interaction.py
   Remove-Item Env:TRAJECTORY_FILE
 The same input option works for all trajectory/radar plot scripts. Selected
 case figures go to analysis_figures/<case filename>/ unless ANALYSIS_OUTDIR

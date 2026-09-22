@@ -561,7 +561,7 @@ for key in ('TRAJECTORY_FILE', 'ANALYSIS_OUTDIR'):
 shutil.copy("output_5zones/planned_path_coarse.pkl", "output_5zones/planned_path_temp.pkl")
 shutil.copy("output_5zones/planned_path_coarse.pkl", "output_5zones/planned_path.pkl")
 
-result = subprocess.run([sys.executable, 'visualize_astar_separate.py'],
+result = subprocess.run([sys.executable, 'plot_trajectory.py', '--view', 'single'],
                        capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     # 重命名为粗网格版本
@@ -578,7 +578,7 @@ else:
     print("    ✗ 粗网格 - 生成失败")
 
 print("\n  粗网格 - 多角度3D图...")
-result = subprocess.run([sys.executable, 'visualize_astar_multi_angle.py'],
+result = subprocess.run([sys.executable, 'plot_trajectory.py', '--view', 'multi'],
                        capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     if os.path.exists("output_5zones/astar_3d_multi_view.png"):
@@ -590,7 +590,7 @@ else:
 print("\n  粗网格 - 速度剖面将在恢复细网格数据后做三组统一对比...")
 
 print("\n  粗网格 - 雷达交互分析图...")
-result = subprocess.run([sys.executable, 'analyze_radar_interaction.py'],
+result = subprocess.run([sys.executable, 'analyze_radar_interaction.py', '--view', 'clearance'],
                        capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     if os.path.exists("output_5zones/radar_interaction_analysis_sci.png"):
@@ -611,7 +611,7 @@ with open("output_5zones/planned_path.pkl", 'wb') as f:
     pickle.dump(fine_data, f)
 
 print("\n  细网格 - 4张独立图片...")
-result = subprocess.run([sys.executable, 'visualize_astar_separate.py'],
+result = subprocess.run([sys.executable, 'plot_trajectory.py', '--view', 'single'],
                        capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     print("    ✓ 细网格 - 4张独立图片生成完成")
@@ -619,7 +619,7 @@ else:
     print("    ✗ 细网格 - 生成失败")
 
 print("\n  细网格 - 多角度3D图...")
-result = subprocess.run([sys.executable, 'visualize_astar_multi_angle.py'],
+result = subprocess.run([sys.executable, 'plot_trajectory.py', '--view', 'multi'],
                        capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     print("    ✓ 细网格 - 多角度3D图生成完成")
@@ -627,7 +627,7 @@ else:
     print("    ✗ 细网格 - 生成失败")
 
 print("\n  三组速度-加速度对比图（粗网格 / 细网格原始 / B样条最终）...")
-result = subprocess.run([sys.executable, 'visualize_speed_profile_english.py'],
+result = subprocess.run([sys.executable, 'plot_flight_constraints.py', '--view', 'speed'],
                        capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     print("    ✓ 三组速度-加速度对比图生成完成")
@@ -637,7 +637,7 @@ else:
         print(result.stderr[-1500:])
 
 print("\n  细网格 - 雷达交互分析图...")
-result = subprocess.run([sys.executable, 'analyze_radar_interaction.py'],
+result = subprocess.run([sys.executable, 'analyze_radar_interaction.py', '--view', 'clearance'],
                        capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     print("    ✓ 细网格 - 雷达交互分析图生成完成")
@@ -645,7 +645,7 @@ else:
     print("    ✗ 细网格 - 生成失败")
 
 print("\n  细网格 - 转弯半径分析图...")
-result = subprocess.run([sys.executable, 'visualize_turn_radius.py'],
+result = subprocess.run([sys.executable, 'plot_flight_constraints.py', '--view', 'turn'],
                        capture_output=True, text=True, env=plot_env)
 if result.returncode == 0:
     print("    ✓ 细网格 - 转弯半径分析图生成完成")

@@ -1,13 +1,15 @@
 """Postprocessing contract tests; no A* searches or production writes."""
 import contextlib
+import ast
 import io
 import os
 import pickle
 import runpy
+import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import matplotlib
 matplotlib.use('Agg')
@@ -94,9 +96,9 @@ class AnalysisContractTests(unittest.TestCase):
                     loader.resolve_sweep_file()
                 self.assertEqual(loader.resolve_sweep_file(str(old)), old)
 
-    def test_all_four_analysis_scripts_share_validated_table_and_selection(self):
-        scripts = ('plot_heatmap_3obj_v3.py', 'analyze_core_tradeoffs_v2.py',
-                   'analyze_altitude_strategy_v2.py', 'analyze_weight_sensitivity_v2.py')
+    def test_all_analysis_scripts_share_validated_table_and_selection(self):
+        scripts = ('analyze_core_tradeoffs_v2.py',
+                   'analyze_altitude_strategy_v2.py', 'analyze_weight_sensitivity.py')
         with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
             stack.enter_context(patch.dict(os.environ, {'ANALYSIS_OUTDIR': tmp}))
             stack.enter_context(patch.object(loader, 'load_sweep_dataframe',
@@ -128,7 +130,7 @@ class TrajectoryContractTests(unittest.TestCase):
         self.assertEqual(data['stats']['Crisk'], 12.5)
         np.testing.assert_array_equal(data['path'], case['final_path'])
         np.testing.assert_array_equal(data['speed_profile'], case['speed'])
-        from visualize_speed_profile_english import build_profiles, _profile_time
+        from plot_flight_constraints import build_profiles, _profile_time
         profiles = build_profiles({'path': data['path_raw']}, data, FixedWingDynamics())
         self.assertEqual(set(profiles), {'Coarse A*', 'Coarse + B-spline'})
         final = profiles['Coarse + B-spline']
@@ -173,16 +175,147 @@ class TrajectoryContractTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 trajectories.load_trajectory_data(path)
 
-    def test_radar_v2_annotation_uses_actual_exposure(self):
+    def test_radar_annotation_uses_actual_exposure(self):
         data = self.load_case(saved_case())
         with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
             stack.enter_context(patch.dict(os.environ, {'ANALYSIS_OUTDIR': tmp}))
             stack.enter_context(patch.object(trajectories, 'load_trajectory_data', return_value=data))
             stack.enter_context(patch('matplotlib.figure.Figure.savefig'))
             stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
-            namespace = runpy.run_path(str(ROOT/'analyze_radar_interaction_v2.py'), run_name='__main__')
-            self.assertIn('累积暴露: 12.50 s', namespace['info_text'])
+            namespace = runpy.run_path(str(ROOT/'analyze_radar_interaction.py'))
+            env = namespace['RadarEnvironment5Zones']()
+            env.generate(seed=42)
+            threat = namespace['EnvironmentThreatModel'](env, model='power', power_n=4.0)
+            info_text = namespace['plot_penetration'](data, env, threat)
+            self.assertIn('累积暴露: 12.50 s', info_text)
             plt.close('all')
+
+    def test_merged_trajectory_entries_preserve_all_outputs_and_load_once(self):
+        data = self.load_case(saved_case())
+        expected = {
+            'plot_trajectory.py': {'astar_3d_trajectory.png', 'astar_altitude_profile.png',
+                'astar_topview.png', 'astar_altitude_changes.png', 'astar_3d_multi_view.png'},
+            'plot_flight_constraints.py': {'speed_profile_three_way_english.png', 'turn_radius_analysis.png'},
+            'analyze_radar_interaction.py': {'radar_interaction_analysis_sci.png', 'radar_interaction_overview.png'},
+        }
+        original = {key: np.array(data[key], copy=True)
+                    for key in ('path', 'path_raw', 'speed_profile', 'accel_profile')}
+        for script, outputs in expected.items():
+            with self.subTest(script=script), tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
+                stack.enter_context(patch.dict(os.environ, {'ANALYSIS_OUTDIR': tmp}))
+                reader = stack.enter_context(patch.object(trajectories, 'load_trajectory_data', return_value=data))
+                saved = {}
+                def capture(fig, filename, **kwargs):
+                    saved[Path(filename).name] = fig
+                stack.enter_context(patch('matplotlib.figure.Figure.savefig', new=capture))
+                stack.enter_context(patch.object(sys, 'argv', [script]))
+                stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                runpy.run_path(str(ROOT/script), run_name='__main__')
+                reader.assert_called_once()
+                self.assertEqual(set(saved), outputs)
+                if script == 'plot_trajectory.py':
+                    distance = saved['astar_altitude_profile.png'].axes[0].lines[0].get_xdata()
+                    self.assertAlmostEqual(distance[-1], data['stats']['L']/1000.)
+                if script == 'plot_flight_constraints.py':
+                    speed = saved['speed_profile_three_way_english.png'].axes[0].lines[1].get_ydata()
+                    np.testing.assert_array_equal(speed, data['speed_profile']*3.6)
+                for key, value in original.items():
+                    np.testing.assert_array_equal(data[key], value)
+                self.assertEqual(plt.get_fignums(), [])
+
+    def test_main_speed_comparison_requires_matching_coarse_cache(self):
+        import plot_flight_constraints as plots
+        data = self.load_case(saved_case())
+        data.update(source_kind='main', trajectory_signature='same-run')
+        coarse = dict(data, path=data['path_raw'])
+        profiles = plots.build_profiles(coarse, data, FixedWingDynamics())
+        self.assertEqual(set(profiles), {'Coarse A*', 'Fine A* raw', 'Fine + B-spline'})
+        np.testing.assert_array_equal(profiles['Fine + B-spline']['v'], data['speed_profile'])
+        with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
+            stack.enter_context(patch.dict(os.environ, {'ANALYSIS_OUTDIR': tmp}))
+            stack.enter_context(patch.object(plots, 'load_trajectory_data', return_value=coarse))
+            stack.enter_context(patch('matplotlib.figure.Figure.savefig'))
+            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            plots.plot_speed_profiles(data, FixedWingDynamics())
+            coarse['w_time'] += .1
+            with self.assertRaisesRegex(ValueError, 'different experiments'):
+                plots.plot_speed_profiles(data, FixedWingDynamics())
+
+    def test_altitude_axis_uses_3d_distance_on_climbing_path(self):
+        import plot_trajectory as plots
+        from radar_environment_5zones import RadarEnvironment5Zones
+        points = np.array([[0., 0., 0.], [3000., 0., 4000.], [6000., 0., 0.]])
+        data = dict(path=points, start=points[0], goal=points[-1],
+                    stats={'L': 10000., 'Crisk': 0.}, L0=6000.)
+        saved = {}
+        def capture(fig, filename, **kwargs):
+            saved[Path(filename).name] = fig
+        with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
+            stack.enter_context(patch.dict(os.environ, {'ANALYSIS_OUTDIR': tmp}))
+            stack.enter_context(patch('matplotlib.figure.Figure.savefig', new=capture))
+            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            plots.plot_single_views(data, RadarEnvironment5Zones())
+        distance = saved['astar_altitude_profile.png'].axes[0].lines[0].get_xdata()
+        np.testing.assert_array_equal(distance, [0., 5., 10.])
+
+
+class MergedEntryTests(unittest.TestCase):
+    def test_imports_do_not_read_results_or_generate_figures(self):
+        scripts = ('plot_trajectory.py', 'plot_flight_constraints.py',
+                   'analyze_radar_interaction.py', 'analyze_weight_sensitivity.py')
+        with patch.object(trajectories, 'load_trajectory_data', side_effect=AssertionError('read on import')), \
+             patch.object(loader, 'load_sweep_dataframe', side_effect=AssertionError('read on import')), \
+             patch('matplotlib.figure.Figure.savefig', side_effect=AssertionError('write on import')):
+            for script in scripts:
+                runpy.run_path(str(ROOT/script))
+            self.assertEqual(plt.get_fignums(), [])
+
+    def test_main_plot_commands_dispatch_only_requested_view(self):
+        tree = ast.parse((ROOT/'main.py').read_text(encoding='utf-8-sig'))
+        commands = [node.args[0] for node in ast.walk(tree) if isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == 'subprocess' and node.func.attr == 'run']
+        self.assertEqual(len(commands), 8)
+        targets = {'single': 'plot_single_views', 'multi': 'plot_multi_view',
+                   'speed': 'plot_speed_profiles', 'turn': 'plot_turn_radius',
+                   'clearance': 'plot_clearance', 'penetration': 'plot_penetration'}
+        with contextlib.redirect_stdout(io.StringIO()):
+            for command in commands:
+                script, *args = [ast.literal_eval(item) for item in command.elts[1:]]
+                self.assertTrue((ROOT/script).is_file(), script)
+                namespace = runpy.run_path(str(ROOT/script))
+                globals_ = namespace['main'].__globals__
+                with contextlib.ExitStack() as stack:
+                    stack.enter_context(patch.dict(globals_, load_trajectory_data=lambda **kw: {}))
+                    calls = {}
+                    for name in targets.values():
+                        if name in globals_:
+                            calls[name] = Mock()
+                    stack.enter_context(patch.dict(globals_, calls))
+                    namespace['main'](args)
+                    for name, call in calls.items():
+                        self.assertEqual(call.call_count, int(name == targets[args[1]]))
+
+    def test_heatmap_alias_uses_same_matrix_and_keeps_units(self):
+        data = full_table()
+        with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
+            stack.enter_context(patch.dict(os.environ, {'ANALYSIS_OUTDIR': tmp}))
+            reader = stack.enter_context(patch.object(loader, 'load_sweep_dataframe', return_value=(data, Path(tmp)/'fixture.xlsx')))
+            saved = {}
+            def capture(fig, filename, **kwargs):
+                saved[Path(filename).name] = fig
+            stack.enter_context(patch('matplotlib.figure.Figure.savefig', new=capture))
+            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            runpy.run_path(str(ROOT/'analyze_weight_sensitivity.py'), run_name='__main__')
+            reader.assert_called_once()
+            self.assertEqual(set(saved), {'weight_sensitivity_curves.png',
+                'weight_interaction_heatmap.png', 'heatmap_3obj_v3.png'})
+            heatmap = saved['weight_interaction_heatmap.png']
+            self.assertIs(heatmap, saved['heatmap_3obj_v3.png'])
+            expected = data.pivot(index='wf', columns='wt', values='C').sort_index(ascending=False)
+            np.testing.assert_array_equal(heatmap.axes[1].images[0].get_array(), expected.values)
+            self.assertIn('暴露时间 (s)', [ax.get_ylabel() for ax in heatmap.axes])
+            self.assertEqual(plt.get_fignums(), [])
 
 
 if __name__ == '__main__':

@@ -1438,10 +1438,10 @@ F_{\rm final}
 | `main.py` | 完整 two-stage + trajectory pipeline | 4.2 / 4.4 | 已完成 |
 | `sweep_2d.py` | 72-case coarse weight sweep | 4.3 | 正在正式重跑 |
 | `select_representative_weights.py` | 代表性权重选择 | 4.4 | 已具备 |
-| `analyze_weight_sensitivity_v2.py` | 权重敏感性 | 4.3 | 已具备 |
+| `analyze_weight_sensitivity.py` | 权重敏感性与三目标热力图 | 4.3 | 已具备 |
 | `analyze_core_tradeoffs_v2.py` | T/C/F trade-off | 4.3 | 已具备 |
 | `analyze_altitude_strategy_v2.py` | altitude 策略解释 | 可选辅助 | 已具备 |
-| `analyze_radar_interaction*.py` | radar interaction 解释 | 可选辅助 | 已具备 |
+| `analyze_radar_interaction.py` | 雷达净空与穿透分析 | 可选辅助 | 已具备 |
 
 ---
 
