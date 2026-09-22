@@ -1,5 +1,20 @@
 # AST 期刊论文详细写作框架与最小补实验路线（V5.3 完整版）
 
+> **第四章紧凑版（2026-09-22，优先于下文历史实验建议）**：4.1 实验设置；
+> 4.2 Overall planning performance and controlled comparisons，集中比较时间单目标与多目标、
+> 同次 main 的 Coarse/Fine Raw、同次 main 的 Fine Raw/B-spline；4.3 用72组结果给出
+> T/C/F三张热力图和以F着色的T-C散点图；4.4 Representative mission preferences，
+> 从72组按规则选Risk/Time/Balanced，直接复用sweep最终缓存，呈现一张三维叠加图和一张表。
+> 4.4不再默认要求三个代表都重跑main；完整两阶段证据由4.2承担。正式章节见
+> `paper/section4_experiments.tex`，执行说明见 `paper/chapter4_design.md`。
+> 时间基线保留共同硬约束，不把未计入软威胁的代价设置说成A*只能处理二值代价。
+> 本文档历史进度不代表当前72组已验收；旧的额外图和补实验清单不作为本轮必做项。
+
+> **本轮写作更新**：完整稿已补摘要方法段、Highlights、引言三小节、三项贡献、
+> 结论方法段与六条核实参考文献。摘要/结论的实测结果仍以`%%`标注待填。
+> 4.2是受控目标/阶段比较，不是完整因素消融；下文旧称ablation按此解释。
+> 优先使用`paper/manuscript_updated.tex`和`paper/continuation_notes.md`。
+
 > 目标期刊：**Aerospace Science and Technology (AST)**  
 > 当前程序版本：**Fixed-wing multi-objective planner V5.3 FINAL**  
 > 论文类型：Research Article  
@@ -1515,7 +1530,7 @@ F_{\rm final}
 
 # 12.1 4.2.1 Traditional A* vs Proposed
 
-这是后续唯一需要新增的真正 baseline 对比。
+这是当前最小实验路线中的基础 objective baseline；它验证代价设置的作用，不自动证明相对其他文献方法的先进性。
 
 ---
 

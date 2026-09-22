@@ -153,7 +153,10 @@ class PaperModelTests(unittest.TestCase):
     def test_integrated_manuscript_structure_and_section_placement(self):
         folder = Path(__file__).parent
         source = (folder/'manuscript_updated.tex').read_text(encoding='utf-8')
-        for name in ('section2_revised.tex', 'section3_method.tex', 'section4_experiments.tex'):
+        for name in ('abstract_draft.tex', 'section1_introduction.tex',
+                     'section2_revised.tex', 'section3_method.tex',
+                     'section4_experiments.tex', 'section5_conclusions.tex',
+                     'references.tex'):
             self.assertIn((folder/name).read_text(encoding='utf-8'), source)
         active = re.sub(r'(?m)(?<!\\)%.*$', '', source)
         labels = re.findall(r'\\label\{([^}]+)\}', active)
@@ -163,7 +166,7 @@ class PaperModelTests(unittest.TestCase):
         sections = re.split(r'\\section\{[^}]+\}', active)
         self.assertEqual(len(sections)-1, 5)
         self.assertEqual([len(re.findall(r'\\subsection\{', text)) for text in sections[1:]],
-                         [0, 4, 5, 4, 0])
+                         [3, 4, 5, 4, 0])
         self.assertIn(r'\label{pr:eq:fuelpower}', sections[2])
         self.assertIn(r'\label{pr:sec:objective}', sections[2])
         self.assertIn(r'\label{sec:method}', sections[3])
@@ -187,6 +190,95 @@ class PaperModelTests(unittest.TestCase):
             depth += 1 if match.group()[-1] == '{' else -1
             self.assertGreaterEqual(depth, 0)
         self.assertEqual(depth, 0)
+
+    def test_chapter4_contribution_structure_and_labels(self):
+        source = Path(__file__).with_name('section4_experiments.tex').read_text(encoding='utf-8')
+        active = re.sub(r'(?m)(?<!\\)%.*$', '', source)
+        sections = re.split(r'\\subsection\{([^}]+)\}', active)
+        self.assertEqual(sections[1::2], [
+            'Simulation setup and evaluation protocols',
+            'Overall planning performance and controlled comparisons',
+            'Mission-preference sensitivity',
+            'Representative mission preferences'])
+        bodies = sections[2::2]
+        self.assertEqual([len(re.findall(r'\\subsubsection\{', body)) for body in bodies],
+                         [0, 3, 0, 0])
+        # Preserve stable cross-reference labels when moving the experimental
+        # material, and ensure each evidence group belongs to its contribution.
+        expected_groups = [
+            ('sec:setup', 'tab:aircraft', 'tab:planning'),
+            ('sec:ablation', 'sec:objective_comparison',
+             'sec:resolution_comparison', 'sec:refinement_comparison'),
+            ('sec:sensitivity', 'ex:eq:weights'),
+            ('sec:representative', 'ex:eq:extremecases', 'ex:eq:batchscale',
+             'ex:eq:balancedcase', 'tab:representatives')]
+        for body, names in zip(bodies, expected_groups):
+            labels = re.findall(r'\\label\{([^}]+)\}', body)
+            for name in names:
+                self.assertIn(name, labels)
+
+    def test_compact_chapter_figure_and_representative_table_contract(self):
+        source = Path(__file__).with_name('section4_experiments.tex').read_text(encoding='utf-8')
+        sensitivity, representative = source.split(r'\label{sec:sensitivity}', 1)[1].split(
+            r'\subsection{Representative mission preferences}', 1)
+        # All graphics remain commented placeholders; verify the agreed four
+        # figure allocation without requiring missing artwork for compilation.
+        figures = re.findall(r'\{figures/([^}]+)\}', sensitivity)
+        self.assertEqual(figures, ['time_heatmap.pdf', 'exposure_heatmap.pdf',
+                                  'fuel_heatmap.pdf', 'time_exposure_scatter.pdf'])
+        self.assertEqual(re.findall(r'\{figures/([^}]+)\}', representative),
+                         ['representative_preferences.pdf'])
+        self.assertEqual(representative.count(r'\begin{table}'), 1)
+        rows = [line.strip() for line in representative.splitlines()
+                if line.strip().startswith(('Risk-dominant &', 'Time-dominant &', 'Balanced &'))]
+        self.assertEqual(len(rows), 3)
+        for line in rows:
+            self.assertEqual(line.count('&'), 6)
+            self.assertEqual(line.count('--'), 6)  # No invented experiment numbers.
+
+    def test_citations_are_resolved_and_bibliography_is_used(self):
+        folder = Path(__file__).parent
+        source = (folder/'manuscript_updated.tex').read_text(encoding='utf-8')
+        active = re.sub(r'(?m)(?<!\\)%.*$', '', source)
+        keys = re.findall(r'\\bibitem\{([^}]+)\}', active)
+        cited = {key.strip() for group in re.findall(r'\\cite\{([^}]+)\}', active)
+                 for key in group.split(',')}
+        self.assertTrue(cited)
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertEqual(cited, set(keys))
+        entries = re.split(r'\\bibitem\{[^}]+\}', active)[1:]
+        for entry in entries:
+            self.assertRegex(entry, r'\b(?:19|20)\d{2}\b')
+        dois = re.findall(r'\\url\{https://doi.org/([^}]+)\}', active)
+        self.assertEqual(len(dois), len(set(dois)))
+        self.assertTrue(dois)
+        self.assertIn(r'\usepackage[hidelinks]{hyperref}', active)
+
+    def test_frontmatter_and_preview_are_synchronized(self):
+        folder = Path(__file__).parent
+        main = (folder/'manuscript_updated.tex').read_text(encoding='utf-8')
+        preview = (folder/'preview.tex').read_text(encoding='utf-8')
+        title = re.search(r'(?m)^\\title\{([^}]+)\}', main).group(1)
+        self.assertIn('\\title{'+title+'}', preview)
+        inputs = re.findall(r'\\input\{([^}]+)\}', preview)
+        expected = ['abstract_draft.tex', 'section1_introduction.tex',
+                    'section2_revised.tex', 'section3_method.tex',
+                    'section4_experiments.tex', 'section5_conclusions.tex',
+                    'references.tex']
+        self.assertEqual(inputs, expected)
+        for name in inputs:
+            self.assertTrue((folder/name).is_file())
+            self.assertIn((folder/name).read_text(encoding='utf-8'), main)
+        abstract = main.split(r'\begin{abstract}', 1)[1].split(r'\end{abstract}', 1)[0]
+        self.assertEqual(abstract.strip(),
+                         (folder/'abstract_draft.tex').read_text(encoding='utf-8').strip())
+        self.assertNotIn('Abstract text.', main)
+        self.assertNotIn('Research highlight 1', main)
+        highlights = main.split(r'\begin{highlights}', 1)[1].split(r'\end{highlights}', 1)[0]
+        items = re.findall(r'\\item ([^\n]+)', highlights)
+        self.assertTrue(3 <= len(items) <= 5)
+        for item in items:
+            self.assertLessEqual(len(item), 85)
 
     def test_tex_structure_and_internal_references(self):
         path = Path(__file__).with_name('section2_revised.tex')

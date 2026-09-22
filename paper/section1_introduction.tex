@@ -1,0 +1,124 @@
+\section{Introduction}
+\label{sec:introduction}
+
+\subsection{Background and motivation}
+\label{sec:motivation}
+
+Fixed-wing unmanned aerial vehicle (UAV) mission planning involves coupled
+decisions about route geometry, travel time and energy expenditure. In a
+threat environment, these decisions also determine the duration and
+intensity of exposure. Two collision-free routes can therefore have markedly
+different mission costs: a detour may avoid a region of high threat intensity
+but require more time and fuel, whereas a shorter route may cross that
+region for a limited duration. A useful planner must distinguish absolute
+prohibitions from traversable regions whose desirability depends on the
+mission preference.
+
+A* provides a general mechanism for searching a graph with assigned edge
+costs~\cite{hart1968}. Its capacity to represent soft threats depends on the
+chosen graph and cost model. In a binary-occupancy, time-oriented formulation,
+obstacle checks establish admissibility and travel-time estimates rank the
+remaining routes; different threat intensities within free space do not
+affect that ranking unless they are included in the cost. The question
+addressed here is how to combine this spatial information with time and
+fuel preferences while retaining a clear connection to the trajectory
+that will ultimately be evaluated.
+
+Three issues arise in this connection. First, exposure is accumulated over
+time, so a spatial threat score alone cannot determine the cost of a
+variable-speed trajectory. Second, increasing the resolution of a
+three-dimensional search expands its computational requirements, motivating
+local refinement of a coarse route. Third, collision-free grid edges can
+meet at corners that a fixed-wing aircraft cannot follow directly.
+Smoothing changes the geometry, and speed assignment changes the time spent
+along it. Consequently, the mission metrics of the final trajectory must
+be distinguished from the estimates used to select the discrete path.
+
+\subsection{Related work}
+\label{sec:related_work}
+
+Risk-aware and multi-objective planning incorporate more information than
+binary occupancy. Guo et al.~\cite{guo2022} combine threat strength and path
+length in FC-RRT*, using the resulting cost and flight constraints in tree
+expansion and parent selection. Their formulation illustrates that
+traversable threats and mission-dependent trade-offs are established
+planning concepts. For the present problem, the modeling emphasis is on
+time-integrated exposure together with flight time and fuel consumption.
+Because subsequent speed assignment can alter exposure even when the route
+is unchanged, these quantities also require a common final evaluation
+protocol.
+
+Hierarchical planning addresses the cost of resolving large spatial
+domains. Liu et al.~\cite{liu2026} couple a multigranularity semantic-risk
+representation with coarse corridor guidance and fine-level A* search.
+Their urban framework also supports replanning after airspace changes; its
+voxel-center output requires subsequent smoothing and platform-specific
+dynamic verification. This work establishes a close precedent for
+risk-aware corridor refinement. The present study concentrates on
+fixed-wing trajectory generation after route selection, carrying shared
+time--exposure--fuel references through both search resolutions and
+evaluating the refined trajectory under its assigned speed profile.
+
+Fixed-wing trajectory methods explicitly address the relation between
+geometry and motion. Li et al.~\cite{li2025} decompose constrained trajectory
+optimization into path and speed subproblems and use nonlinearity transfer
+and convexification to obtain convergent solution procedures. Zhang et
+al.~\cite{zhang2026} use an improved A* path to initialize states and controls
+for subsequent pseudospectral trajectory optimization. These studies show
+that path--speed decomposition and search-to-trajectory integration already
+have substantive precedents. Here, a reduced flight-envelope formulation
+is used to connect preference-based graph search with spline refinement
+and speed assignment, rather than to solve a full aircraft optimal-control
+problem. Parametric spline fitting itself follows established
+methods~\cite{dierckx1993}; the application-specific issue is how the fitted
+curve is constrained, selected and reevaluated.
+
+\subsection{Research focus and contributions}
+\label{sec:contributions}
+
+The problem addressed in this paper is the consistency of the transition
+from mission-dependent route selection to a constrained fixed-wing
+trajectory. This consistency has three concrete requirements: the two
+search resolutions must use the same objective references; the smoothed
+curve must be checked against the constraints affected by geometric
+modification; and final time, exposure and fuel must be calculated using
+the assigned motion rather than inherited from the search. The proposed
+framework addresses these requirements through the following contributions.
+
+\begin{enumerate}
+\item A mission-preference-driven time--exposure--fuel formulation is
+constructed for hard--soft threat environments. Hard no-fly regions define
+infeasibility, while a continuous radar-exposure surrogate enters the cost
+through its time integral. Three single-objective coarse-search anchors
+provide fixed reference scales for weighted route selection and subsequent
+reporting.
+
+\item A coarse-to-fine three-dimensional planning procedure applies the
+same weighted search objective and reference scales at both resolutions.
+The coarse route defines a spatial corridor within which a fresh fine-grid
+search resolves local geometry. This procedure makes the role of spatial
+refinement explicit without interpreting interpolation as replanning.
+
+\item A constrained path-to-trajectory procedure connects cubic B-spline
+refinement, analytical curvature evaluation, sampled feasibility checks
+and forward--backward speed assignment. Final mission costs are
+reintegrated along the refined trajectory, exposing the changes introduced
+by geometric modification and retiming instead of treating discrete-path
+statistics as executable-trajectory performance.
+\end{enumerate}
+
+The numerical study is organized around controlled comparisons in one
+prescribed environment. Full two-stage cases examine the objective choice
+and the successive planning stages, while a separate 72-case coarse-search
+protocol characterizes preference sensitivity and supplies representative
+trajectories. This design separates evidence about the complete planning
+chain from evidence about weight-dependent behavior. Feasibility throughout
+this paper refers to the specified reduced flight envelope and numerical
+checks; it does not imply a full flight-dynamics or tracking validation.
+
+Section~\ref{pr:sec:problem} defines the environment, constraints and mission
+objective. Section~\ref{sec:method} presents the planning and evaluation
+procedure. Section~\ref{sec:results} specifies the controlled comparisons
+and preference analysis, and Section~\ref{sec:conclusions} concludes the paper.
+%% 引言不预填实验提升数字。第四章实测完成后，可在本节最后补一句最主要发现。
+%% 目前引用支撑的是具体方法关系，不宣称已穷尽相关工作或首次组合这些模块。

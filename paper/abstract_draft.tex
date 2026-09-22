@@ -1,0 +1,27 @@
+Fixed-wing mission planning in spatially varying threat environments requires
+decisions about where to fly and how to traverse the selected route. A
+collision-free path alone does not specify the exposure accumulated during
+flight or its compatibility with aircraft motion limits. This paper presents
+a risk-aware planning framework that connects mission-dependent route
+selection with flight-envelope-constrained trajectory generation. Hard
+no-fly regions are excluded from the feasible space, while a continuous
+radar-exposure surrogate is integrated over flight time. Time, exposure and
+fuel estimates are combined using shared normalization references obtained
+from three single-objective coarse searches. A coarse A* search establishes
+the route, followed by fine-grid replanning within a three-dimensional
+corridor under the same weighted objective. Cubic B-spline candidates are
+then evaluated using analytical curvature and sampled geometric checks.
+Forward--backward speed assignment enforces the modeled speed, turning,
+vertical-rate and tangential-acceleration limits. Mission metrics are
+recomputed along the final trajectory using the resulting travel times.
+The evaluation protocol combines controlled objective and stage comparisons
+with a 72-case preference study in a fixed five-zone environment, separating
+full two-stage evaluations from coarse-search sensitivity cases.
+%% RESULT SENTENCES: 第四章完成后在这里加入2--3句真实结果，替换上一句中的
+%% "evaluation protocol"表述为与已完成实验相符的描述。建议依次写：
+%% 1. 相同完整协议下，相对时间基线的暴露变化及对应时间/燃油代价；
+%% 2. 一组main的细化/最终约束验证结果；3. 72组中实际观察到的偏好取舍。
+%% 使用真实数值、单位和工况，不预设降低百分比，不把72组写成72个场景。
+The framework provides a traceable connection between planning preferences,
+geometric refinement and final mission evaluation within a reduced
+fixed-wing flight-envelope model.

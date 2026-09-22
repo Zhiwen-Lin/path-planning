@@ -1,0 +1,31 @@
+\section{Conclusions}
+\label{sec:conclusions}
+
+This paper develops a risk-aware planning framework that connects
+mission-dependent graph search with fixed-wing trajectory generation.
+Hard no-fly constraints and continuous soft exposure have distinct roles
+in the model, while time, exposure and fuel are combined through shared
+reference scales. Coarse and corridor-constrained fine searches retain
+the same mission objective. Subsequent spline refinement and speed
+assignment convert the selected path into a trajectory evaluated against
+the prescribed flight envelope. Reintegrating the mission metrics after
+these stages preserves the distinction between search estimates and the
+cost of the resulting motion.
+
+%% EMPIRICAL CONCLUSIONS: 在此插入第四章支持的一个结果段，建议3--4句：
+%% (a) 指明主案例权重和时间基线，填写C的变化及T/F实际代价；
+%% (b) 指明同次main的粗细路径变化，不把样条/速度的作用归给fine搜索；
+%% (c) 给出最终曲率、爬升角、速度/加速度和硬区检查的实际结果；
+%% (d) 从72组总结一条本场景内的权重响应规律，注明其为coarse+后处理协议。
+%% 不把“需要证明的问题”写成“已经证明的结论”，也不要求三个代价全部下降。
+
+The scope of the study is a prescribed static environment and a reduced
+aircraft model. The exposure integral is a planning surrogate, and the
+fuel estimate is evaluated under the stated aerodynamic and efficiency
+assumptions. Numerical feasibility checks do not constitute a continuous
+collision certificate or a closed-loop flight demonstration. Within this
+scope, the framework provides an auditable basis for relating mission
+preferences to the geometry, motion limits and evaluated cost of a planned
+trajectory. Further work will examine the effect of environmental and
+model uncertainty and connect the generated references with higher-fidelity
+flight dynamics and trajectory tracking.

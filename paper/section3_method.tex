@@ -32,7 +32,7 @@ and final trajectory performance explicit.
 \subsection{Multi-objective risk-aware A* search}
 \label{sec:astar}
 
-The search graph represents position on an anisotropic Cartesian lattice
+The A* search~\cite{hart1968} represents position on an anisotropic Cartesian lattice
 with horizontal and vertical spacings $\delta_{xy}$ and $\delta_z$.
 Candidate displacements are drawn from
 \begin{equation}
@@ -154,7 +154,7 @@ where $B_{j,3}$ are cubic basis functions, $\mathbf c_j$ are control points,
 and $\sigma$ controls the fit. Chord-length parameterization assigns
 $u_i=\sum_{k=0}^{i-1}\|\mathbf P_{k+1}-\mathbf P_k\|/L_{\mathrm{raw}}$,
 where $L_{\mathrm{raw}}$ is the polyline length. The initial FITPACK
-smoothing fit uses the weighted residual condition
+smoothing fit~\cite{dierckx1993} uses the weighted residual condition
 \begin{equation}
  \sum_{i=0}^{n-1}\omega_i^2
        \|\mathbf P_i-\mathbf q_\sigma(u_i)\|^2\le\sigma,
@@ -216,8 +216,7 @@ $C^2$ geometric continuity and permit curvature evaluation from analytic
 derivatives. This property removes polyline corners, but does not by itself
 establish feasibility or imply continuous jerk in the time-parameterized
 motion. Those issues require the subsequent geometric and speed checks.
-%% Cite the verified FITPACK/Dierckx reference used by the installed SciPy
-%% implementation when finalizing the bibliography.
+%% FITPACK interface details are recorded in literature_alignment.md.
 
 \subsection{Geometric feasibility validation and candidate selection}
 \label{sec:trajectory_validation}
@@ -370,7 +369,7 @@ vehicle, while retiming changes both residence time and fuel expenditure.
 Consequently, a lower geometric refinement score does not by itself imply
 a lower final mission objective. The reported output is the accepted
 geometry, its assigned speed profile and the recomputed $(T,C,F,J)$;
-search-stage estimates are retained separately for diagnosis and ablation.
+search-stage estimates are retained separately for diagnosis and stage comparisons.
 
 %% FIGURE PLACEHOLDER: use measured outputs in Section 4.2, not synthetic data.
 %% Suggested panels: local raw/spline geometry; analytic spline curvature
